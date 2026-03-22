@@ -75,3 +75,4 @@ AI agents working in this repository must:
 3. Preserve separation between UI, logic, and database access.
 4. Prefer simple and maintainable implementations.
 5. Do not modify the core data model unless explicitly requested.
+6. If clarification is needed during execution, use the interactive `question` tool instead of pausing the session with open-ended prompts.
