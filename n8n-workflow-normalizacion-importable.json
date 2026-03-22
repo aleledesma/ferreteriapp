@@ -1,0 +1,269 @@
+{
+  "name": "Normalizacion proveedores (placeholder)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "proveedores-normalizacion-placeholder",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "a4cc8cf1-106c-4a26-9567-c2ea306e72a1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst configuredToken = 'api-key-test';\nconst providedToken = String(headers['x-ingest-token'] || headers['X-Ingest-Token'] || '').trim();\n\nif (configuredToken && providedToken !== configuredToken) {\n  throw new Error('Token invalido o ausente en header x-ingest-token');\n}\n\nconst proveedores = [];\nif (Array.isArray(payload)) {\n  for (const [i, entry] of payload.entries()) {\n    const proveedor = entry?.proveedor ?? entry?.supplier ?? `proveedor_${i + 1}`;\n    const productos = Array.isArray(entry?.productos) ? entry.productos : (Array.isArray(entry?.products) ? entry.products : []);\n    proveedores.push({ proveedor, productos });\n  }\n} else if (payload && typeof payload === 'object') {\n  for (const [proveedor, productos] of Object.entries(payload)) {\n    proveedores.push({\n      proveedor,\n      productos: Array.isArray(productos) ? productos : [productos],\n    });\n  }\n}\n\nif (!proveedores.length) throw new Error('No se detectaron proveedores/productos en el payload');\n\nconst maxSuppliers = 3;\nconst maxProductsPerSupplier = 30000;\nif (proveedores.length > maxSuppliers) {\n  throw new Error(`Cantidad de proveedores excede limite (${maxSuppliers})`);\n}\nfor (const item of proveedores) {\n  if ((item.productos || []).length > maxProductsPerSupplier) {\n    throw new Error(`Proveedor ${item.proveedor} excede limite de productos (${maxProductsPerSupplier})`);\n  }\n}\n\nconst traceId = headers['x-request-id'] || headers['X-Request-Id'] || `trace_${Date.now()}`;\nreturn [{ json: { receivedAt: new Date().toISOString(), traceId, proveedores } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "5dd95fd4-c618-4257-9f48-b7533c45f7c9",
+      "name": "Estandarizar entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const proveedores = Array.isArray($json.proveedores) ? $json.proveedores : [];\n\nif (!proveedores.length) {\n  throw new Error('No hay proveedores para procesar');\n}\n\nreturn proveedores.map((entry, index) => ({\n  json: {\n    traceId: $json.traceId,\n    receivedAt: $json.receivedAt,\n    supplierName: String(entry?.proveedor ?? `proveedor_${index + 1}`),\n    productos: Array.isArray(entry?.productos) ? entry.productos : [],\n  },\n}));",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "e0c4ce81-4034-46ad-9d0e-0c0f5d0e5551",
+      "name": "Expandir proveedores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = Array.isArray($json.productos) ? $json.productos : [];\n\nconst normalizeHeader = (value) =>\n  String(value || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n\nconst allHeaders = new Set();\nfor (const row of products) {\n  if (!row || typeof row !== 'object') continue;\n  for (const key of Object.keys(row)) {\n    allHeaders.add(String(key));\n  }\n}\n\nconst headers = Array.from(allHeaders);\n\nconst sampleSize = 20;\nconst sampleRows = products.slice(0, sampleSize);\n\nconst columnStats = headers.map((header) => {\n  let nonNullCount = 0;\n  let numericLikeCount = 0;\n  const examples = [];\n  const unique = new Set();\n\n  for (const row of products) {\n    if (!row || typeof row !== 'object') continue;\n    const value = row[header];\n    if (value === null || value === undefined || String(value).trim() === '') {\n      continue;\n    }\n\n    nonNullCount += 1;\n\n    if (typeof value === 'number') {\n      numericLikeCount += 1;\n    } else {\n      const text = String(value).trim();\n      if (/^-?[0-9]+([.,][0-9]+)?$/.test(text)) {\n        numericLikeCount += 1;\n      }\n    }\n\n    if (examples.length < 3) {\n      const text = String(value);\n      examples.push(text.length > 120 ? `${text.slice(0, 117)}...` : text);\n    }\n\n    if (unique.size < 1000) {\n      unique.add(String(value));\n    }\n  }\n\n  return {\n    header,\n    headerNormalized: normalizeHeader(header),\n    nonNullCount,\n    nullCount: Math.max(products.length - nonNullCount, 0),\n    numericLikeRatio: products.length ? Number((numericLikeCount / products.length).toFixed(3)) : 0,\n    uniqueCountApprox: unique.size,\n    examples,\n  };\n});\n\nreturn {\n  json: {\n    ...$json,\n    profile: {\n      totalRows: products.length,\n      headers,\n      columnStats,\n      sampleRows,\n    },\n  },\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "345fc6cc-fc90-48f4-8b8e-dfcb61cb9c81",
+      "name": "Perfilar proveedor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "={{ 'TraceId: ' + $json.traceId + '\\nProveedor: ' + $json.supplierName + '\\nDevuelve SOLO JSON valido segun el schema solicitado.\\nDatos del proveedor (perfil): ' + JSON.stringify($json.profile) }}"
+            }
+          ]
+        },
+        "simplify": true,
+        "jsonOutput": true,
+        "options": {
+          "includeMergedResponse": true,
+          "systemMessage": "Tu tarea NO es normalizar todos los productos. Tu tarea es inferir el MAPPING de columnas de un proveedor al schema objetivo. Responde SOLO JSON valido con este formato exacto: { mapping: { sku, supplierSku, name, brand, category, listPrice, offerPrice, taxRate, barcode }, defaults: { currency }, confidence, warnings }. Reglas: en mapping, cada campo debe ser el nombre EXACTO de una columna presente en headers o null si no existe. No inventes columnas. Usa sampleRows y columnStats para decidir. confidence debe ser numero entre 0 y 1 o null. warnings debe ser array de strings.",
+          "temperature": 0
+        }
+      },
+      "id": "99739cfd-d86a-43ee-b2cf-1973b4e3dc8c",
+      "name": "LLM Mapeador",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "credential-id",
+          "name": "googlePalmApi Credential"
+        }
+      },
+      "continueOnFail": true,
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const providerData = $('Perfilar proveedor').item.json;\n\nconst emptyMapping = {\n  sku: null,\n  supplierSku: null,\n  name: null,\n  brand: null,\n  category: null,\n  listPrice: null,\n  offerPrice: null,\n  taxRate: null,\n  barcode: null,\n};\n\nif (!providerData) {\n  return {\n    json: {\n      pipelineOk: false,\n      stage: 'llm_mapping_link',\n      error: 'No se encontro item del proveedor para esta salida del LLM',\n      traceId: null,\n      supplierName: null,\n      productos: [],\n      mapping: emptyMapping,\n      defaults: { currency: null },\n      mappingWarnings: ['Fallo de enlace entre perfil y salida LLM'],\n      llmRaw: null,\n    },\n  };\n}\n\nif ($json.error) {\n  return {\n    json: {\n      pipelineOk: false,\n      stage: 'llm_mapping_request',\n      error: $json.error,\n      traceId: providerData.traceId,\n      supplierName: providerData.supplierName,\n      productos: providerData.productos,\n      mapping: emptyMapping,\n      defaults: { currency: null },\n      mappingWarnings: ['Fallo la llamada al LLM mapeador'],\n      llmRaw: null,\n    },\n  };\n}\n\nconst rawResponse = $json?.mergedResponse\n  ?? ($json?.content?.parts || [])\n    .filter((part) => typeof part?.text === 'string')\n    .map((part) => part.text)\n    .join('\\n')\n  ?? '';\n\nif (!rawResponse) {\n  return {\n    json: {\n      pipelineOk: false,\n      stage: 'llm_mapping_parse',\n      error: 'Gemini no devolvio texto en mergedResponse/content.parts',\n      traceId: providerData.traceId,\n      supplierName: providerData.supplierName,\n      productos: providerData.productos,\n      mapping: emptyMapping,\n      defaults: { currency: null },\n      mappingWarnings: ['Respuesta vacia del LLM mapeador'],\n      llmRaw: null,\n    },\n  };\n}\n\nconst cleaned = rawResponse\n  .replace(/^```json\\s*/i, '')\n  .replace(/^```\\s*/i, '')\n  .replace(/```$/i, '')\n  .trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  return {\n    json: {\n      pipelineOk: false,\n      stage: 'llm_mapping_parse',\n      error: `El LLM no devolvio JSON valido: ${cleaned.slice(0, 400)}`,\n      traceId: providerData.traceId,\n      supplierName: providerData.supplierName,\n      productos: providerData.productos,\n      mapping: emptyMapping,\n      defaults: { currency: null },\n      mappingWarnings: ['JSON invalido del LLM mapeador'],\n      llmRaw: cleaned,\n    },\n  };\n}\n\nconst allowedHeaders = Array.isArray(providerData?.profile?.headers)\n  ? providerData.profile.headers\n  : [];\n\nconst normalizeKey = (value) =>\n  String(value || '')\n    .normalize('NFD')\n    .replace(/[̀-ͯ]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n\nconst headerByNorm = new Map();\nfor (const header of allowedHeaders) {\n  const key = normalizeKey(header);\n  if (key && !headerByNorm.has(key)) {\n    headerByNorm.set(key, header);\n  }\n}\n\nconst resolveHeader = (candidate) => {\n  if (candidate === null || candidate === undefined) return null;\n  const text = String(candidate).trim();\n  if (!text) return null;\n  if (allowedHeaders.includes(text)) return text;\n  return headerByNorm.get(normalizeKey(text)) || null;\n};\n\nconst mappingInput = parsed?.mapping && typeof parsed.mapping === 'object'\n  ? parsed.mapping\n  : {};\n\nconst mapping = {\n  sku: resolveHeader(mappingInput.sku),\n  supplierSku: resolveHeader(mappingInput.supplierSku),\n  name: resolveHeader(mappingInput.name),\n  brand: resolveHeader(mappingInput.brand),\n  category: resolveHeader(mappingInput.category),\n  listPrice: resolveHeader(mappingInput.listPrice),\n  offerPrice: resolveHeader(mappingInput.offerPrice),\n  taxRate: resolveHeader(mappingInput.taxRate),\n  barcode: resolveHeader(mappingInput.barcode),\n};\n\nconst defaultsInput = parsed?.defaults && typeof parsed.defaults === 'object'\n  ? parsed.defaults\n  : {};\n\nconst defaults = {\n  currency: defaultsInput.currency == null ? null : String(defaultsInput.currency),\n};\n\nconst mappingWarnings = Array.isArray(parsed?.warnings)\n  ? parsed.warnings.map((w) => String(w))\n  : [];\n\nconst hasAnyMapping = Object.values(mapping).some((v) => v !== null);\n\nreturn {\n  json: {\n    pipelineOk: hasAnyMapping,\n    stage: hasAnyMapping ? 'mapping_ok' : 'mapping_empty',\n    error: hasAnyMapping ? null : 'El LLM no pudo inferir mapeos utiles',\n    traceId: providerData.traceId,\n    supplierName: providerData.supplierName,\n    productos: providerData.productos,\n    mapping,\n    defaults,\n    mappingConfidence: typeof parsed?.confidence === 'number' ? parsed.confidence : null,\n    mappingWarnings,\n    llmRaw: cleaned,\n  },\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "5d31f77e-f5f8-463c-af15-1f8f887147eb",
+      "name": "Parsear mapping LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const mapping = $json.mapping || {};\nconst products = Array.isArray($json.productos) ? $json.productos : [];\n\nconst normalizeKey = (value) =>\n  String(value || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n\nconst toStringOrNull = (value) => {\n  if (value === undefined || value === null) return null;\n  const text = String(value).trim();\n  return text ? text : null;\n};\n\nconst toNumberOrNull = (value) => {\n  if (value === undefined || value === null || value === '') return null;\n  if (typeof value === 'number' && Number.isFinite(value)) return value;\n\n  let text = String(value).trim();\n  if (!text) return null;\n\n  text = text\n    .replace(/\\s/g, '')\n    .replace(/[$€]/g, '')\n    .replace(/%/g, '');\n\n  if (text.includes(',') && text.includes('.')) {\n    if (text.lastIndexOf(',') > text.lastIndexOf('.')) {\n      text = text.replace(/\\./g, '').replace(',', '.');\n    } else {\n      text = text.replace(/,/g, '');\n    }\n  } else if (text.includes(',')) {\n    text = text.replace(',', '.');\n  }\n\n  text = text.replace(/[^0-9.-]/g, '');\n  const n = Number(text);\n  return Number.isFinite(n) ? n : null;\n};\n\nconst fallbackSynonyms = {\n  sku: ['codigo', 'codigo producto', 'id', 'item', 'referencia', 'ref', 'sku'],\n  supplierSku: ['codigo proveedor', 'cod proveedor', 'sku proveedor'],\n  name: ['descripcion', 'descripcion del producto', 'detalle', 'articulo', 'nombre'],\n  brand: ['marca', 'brand', 'fabricante'],\n  category: ['rubro', 'rubro padre', 'categoria', 'familia', 'linea'],\n  listPrice: ['precio de lista', 'precio', 'p venta', 'p.venta', 'lista 1', 'lista'],\n  offerPrice: ['precio oferta', 'precio promo', 'precio promocion'],\n  taxRate: ['iva', '% iva', 'impuesto'],\n  barcode: ['codigo barra', 'cod barra', 'ean', 'barcode'],\n};\n\nconst buildNormalizedKeyMap = (row) => {\n  const map = new Map();\n  for (const key of Object.keys(row || {})) {\n    map.set(normalizeKey(key), key);\n  }\n  return map;\n};\n\nconst pickValue = (row, normalizedKeyMap, targetField) => {\n  const mappedHeader = mapping[targetField];\n\n  if (mappedHeader && Object.prototype.hasOwnProperty.call(row, mappedHeader)) {\n    return row[mappedHeader];\n  }\n\n  if (mappedHeader) {\n    const resolved = normalizedKeyMap.get(normalizeKey(mappedHeader));\n    if (resolved && Object.prototype.hasOwnProperty.call(row, resolved)) {\n      return row[resolved];\n    }\n  }\n\n  const aliases = fallbackSynonyms[targetField] || [];\n  for (const alias of aliases) {\n    const resolved = normalizedKeyMap.get(normalizeKey(alias));\n    if (resolved && Object.prototype.hasOwnProperty.call(row, resolved)) {\n      return row[resolved];\n    }\n  }\n\n  return null;\n};\n\nconst normalizedProducts = [];\n\nfor (const row of products) {\n  if (!row || typeof row !== 'object') continue;\n\n  const keyMap = buildNormalizedKeyMap(row);\n\n  const sku = toStringOrNull(pickValue(row, keyMap, 'sku'));\n  const supplierSku = toStringOrNull(pickValue(row, keyMap, 'supplierSku'));\n  const name = toStringOrNull(pickValue(row, keyMap, 'name'));\n  const brand = toStringOrNull(pickValue(row, keyMap, 'brand'));\n  const category = toStringOrNull(pickValue(row, keyMap, 'category'));\n  const listPrice = toNumberOrNull(pickValue(row, keyMap, 'listPrice'));\n  const offerPrice = toNumberOrNull(pickValue(row, keyMap, 'offerPrice'));\n  const taxRate = toNumberOrNull(pickValue(row, keyMap, 'taxRate'));\n  const barcode = toStringOrNull(pickValue(row, keyMap, 'barcode'));\n\n  const warnings = [];\n  if (!name) warnings.push('Falta nombre/descripcion');\n  if (!sku && !supplierSku) warnings.push('Falta identificador sku/codigo');\n  if (listPrice === null && offerPrice === null) warnings.push('Sin precio detectable');\n\n  const essentialOk = [name, sku || supplierSku, listPrice ?? offerPrice]\n    .filter((v) => v !== null && v !== undefined)\n    .length;\n\n  const confidenceBase = typeof $json.mappingConfidence === 'number' ? $json.mappingConfidence : 0.75;\n  const confidence = Number(Math.max(0, Math.min(1, confidenceBase - warnings.length * 0.1 + (essentialOk === 3 ? 0.05 : 0))).toFixed(3));\n\n  normalizedProducts.push({\n    supplierName: $json.supplierName || null,\n    sku,\n    supplierSku,\n    name,\n    brand,\n    category,\n    listPrice,\n    offerPrice,\n    taxRate,\n    barcode,\n    originalProduct: row,\n    confidence,\n    warnings,\n  });\n}\n\nreturn {\n  json: {\n    pipelineOk: normalizedProducts.length > 0,\n    stage: normalizedProducts.length > 0 ? 'normalized' : 'normalized_empty',\n    error: normalizedProducts.length > 0 ? null : 'No se normalizaron productos para el proveedor',\n    traceId: $json.traceId,\n    supplierName: $json.supplierName,\n    mapping: $json.mapping,\n    mappingWarnings: $json.mappingWarnings || [],\n    providerWarnings: $json.mappingWarnings || [],\n    normalizedProducts,\n  },\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "01dece0a-a92f-4325-bce0-1dba96f3cfcb",
+      "name": "Normalizar proveedor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\n\nconst providerResults = items.map((item) => ({\n  supplierName: item.json.supplierName || null,\n  pipelineOk: !!item.json.pipelineOk,\n  stage: item.json.stage || 'unknown',\n  error: item.json.error || null,\n  normalizedCount: Array.isArray(item.json.normalizedProducts)\n    ? item.json.normalizedProducts.length\n    : 0,\n  warnings: Array.isArray(item.json.providerWarnings)\n    ? item.json.providerWarnings\n    : [],\n}));\n\nconst normalizedProducts = items.flatMap((item) =>\n  Array.isArray(item.json.normalizedProducts) ? item.json.normalizedProducts : [],\n);\n\nconst failedProviders = providerResults.filter((r) => !r.pipelineOk).length;\n\nreturn [{\n  json: {\n    ok: failedProviders === 0,\n    stage: 'completed',\n    error: failedProviders\n      ? `Fallaron ${failedProviders} proveedor(es) durante el procesamiento.`\n      : null,\n    totalProviders: providerResults.length,\n    totalNormalizedProducts: normalizedProducts.length,\n    normalizedProducts,\n    providerResults,\n  },\n}];"
+      },
+      "id": "13f64655-1483-41b9-89fe-213f2cd3a4c7",
+      "name": "Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "SETUP ACTUAL (modo test hardcodeado):\\n- Credencial nativa: crear/seleccionar Google Gemini (PaLM) en el nodo 'LLM Mapeador'. API key desde AI Studio.\\n- Seguridad webhook hardcodeada: header x-ingest-token debe ser 'api-key-test'.\\n- Limites hardcodeados: maxSuppliers=3, maxProductsPerSupplier=30000 en 'Estandarizar entrada'.\\n- Estrategia eficiente: Gemini SOLO infiere mapping por proveedor usando headers + muestras + stats.\\n- La normalizacion masiva de filas se hace en codigo (sin LLM), reduciendo consumo de tokens.",
+        "height": 220,
+        "width": 700,
+        "color": 5
+      },
+      "id": "64f90da4-ab67-4f95-8f44-14f0af9eb344",
+      "name": "Nota Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "content": "SCHEMA OBJETIVO DE NORMALIZACION:\\n- normalizedProducts[] con campos: supplierName, sku, supplierSku, name, brand, category, listPrice, offerPrice, taxRate, barcode, originalProduct, confidence, warnings.\\n- El LLM devuelve mapping de columnas (no productos completos).\\n- El nodo 'Normalizar proveedor' aplica mapping y fallback por sinonimos para todas las filas.\\n- Cuando se cierre testing: volver a variables de entorno para token/limites y reagregar envio a backend.",
+        "height": 220,
+        "width": 680,
+        "color": 6
+      },
+      "id": "2c322ed9-87dc-4324-baef-a6c860eb14f0",
+      "name": "Nota Schema",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -180
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Estandarizar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Estandarizar entrada": {
+      "main": [
+        [
+          {
+            "node": "Expandir proveedores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir proveedores": {
+      "main": [
+        [
+          {
+            "node": "Perfilar proveedor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perfilar proveedor": {
+      "main": [
+        [
+          {
+            "node": "LLM Mapeador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Mapeador": {
+      "main": [
+        [
+          {
+            "node": "Parsear mapping LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear mapping LLM": {
+      "main": [
+        [
+          {
+            "node": "Normalizar proveedor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar proveedor": {
+      "main": [
+        [
+          {
+            "node": "Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "7c7ee396-fb6e-4646-9f7e-bbfd2a3e58ad",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "placeholder"
+  },
+  "tags": []
+}
