@@ -6,10 +6,21 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+import {
+  isRecoveryPkceError,
+  toSpanishAuthMessage,
+} from "@/lib/utils/authUtils"
 
 type Notice = {
   tone: "error" | "success"
@@ -18,38 +29,12 @@ type Notice = {
 
 const RECOVERY_TYPE = "recovery"
 
-function toSpanishAuthMessage(message: string) {
-  const normalized = message.toLowerCase()
-
-  if (normalized.includes("pkce code verifier not found in storage")) {
-    return "No se pudo validar el enlace de recuperación. Suele pasar cuando se abre en otro navegador/dispositivo o después de limpiar el almacenamiento del navegador. Solicita un nuevo correo y ábrelo en este mismo navegador."
+function getSafeNextPath(nextParam: string | null) {
+  if (!nextParam || !nextParam.startsWith("/")) {
+    return "/"
   }
 
-  if (normalized.includes("invalid login credentials")) {
-    return "Correo o contraseña incorrectos."
-  }
-
-  if (normalized.includes("email not confirmed")) {
-    return "Tu correo todavía no está confirmado. Revisa tu bandeja de entrada."
-  }
-
-  if (
-    normalized.includes("token has expired") ||
-    normalized.includes("otp_expired") ||
-    normalized.includes("link is invalid")
-  ) {
-    return "El enlace es inválido o venció. Solicita un nuevo correo de recuperación."
-  }
-
-  if (normalized.includes("too many requests")) {
-    return "Se alcanzó el límite de intentos. Espera un momento e inténtalo de nuevo."
-  }
-
-  return "No se pudo completar la autenticación. Inténtalo nuevamente."
-}
-
-function isRecoveryPkceError(message: string) {
-  return message.toLowerCase().includes("pkce code verifier not found in storage")
+  return nextParam
 }
 
 export function LoginForm() {
@@ -64,16 +49,22 @@ export function LoginForm() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const isRecoveryQuery =
-    searchParams.get("recovery") === "1" || searchParams.get("type") === RECOVERY_TYPE
+    searchParams.get("recovery") === "1" ||
+    searchParams.get("type") === RECOVERY_TYPE
   const [isRecoveryMode, setIsRecoveryMode] = useState(isRecoveryQuery)
   const [notice, setNotice] = useState<Notice | null>(null)
   const handledCallbackRef = useRef<string | null>(null)
   const recoveryMode = isRecoveryMode || isRecoveryQuery
 
-  const nextPath = searchParams.get("next") || "/"
+  const nextPath = getSafeNextPath(searchParams.get("next"))
   const providerErrorParam = searchParams.get("error_description")
   const providerError = providerErrorParam
-    ? toSpanishAuthMessage(decodeURIComponent(providerErrorParam.replace(/\+/g, " ")))
+    ? toSpanishAuthMessage(
+        decodeURIComponent(providerErrorParam.replace(/\+/g, " ")),
+        {
+          recoveryContext: isRecoveryQuery,
+        },
+      )
     : null
 
   useEffect(() => {
@@ -91,6 +82,9 @@ export function LoginForm() {
     let mounted = true
 
     void (async () => {
+      const isRecoveryCallback =
+        (tokenHash && type === RECOVERY_TYPE) || isRecoveryQuery
+
       if (tokenHash && type === RECOVERY_TYPE) {
         const { error } = await supabase.auth.verifyOtp({
           type: RECOVERY_TYPE,
@@ -101,19 +95,25 @@ export function LoginForm() {
 
         if (error) {
           setIsRecoveryMode(true)
-          setNotice({ tone: "error", message: toSpanishAuthMessage(error.message) })
+          setNotice({
+            tone: "error",
+            message: toSpanishAuthMessage(error.message),
+          })
           return
         }
 
         setIsRecoveryMode(true)
-        setNotice({ tone: "success", message: "Enlace validado. Ya puedes definir tu nueva contraseña." })
+        setNotice({
+          tone: "success",
+          message: "Enlace validado. Ya puedes definir tu nueva contraseña.",
+        })
         router.replace("/login?recovery=1")
         router.refresh()
         return
       }
 
       if (!code) {
-        if (isRecoveryQuery) {
+        if (isRecoveryCallback) {
           setIsRecoveryMode(true)
           setNotice({
             tone: "error",
@@ -124,20 +124,56 @@ export function LoginForm() {
         return
       }
 
+      if (!isRecoveryCallback) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!mounted) return
+
+        if (session) {
+          router.replace(nextPath)
+          router.refresh()
+          return
+        }
+      }
+
       const { error } = await supabase.auth.exchangeCodeForSession(code)
       if (!mounted) return
 
       if (error) {
-        if (isRecoveryPkceError(error.message)) {
+        if (!isRecoveryCallback) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
+
+          if (!mounted) return
+
+          if (session) {
+            router.replace(nextPath)
+            router.refresh()
+            return
+          }
+        }
+
+        if (isRecoveryCallback && isRecoveryPkceError(error.message)) {
           setIsRecoveryMode(true)
         }
-        setNotice({ tone: "error", message: toSpanishAuthMessage(error.message) })
+        setNotice({
+          tone: "error",
+          message: toSpanishAuthMessage(error.message, {
+            recoveryContext: isRecoveryCallback,
+          }),
+        })
         return
       }
 
-      if (isRecoveryQuery) {
+      if (isRecoveryCallback) {
         setIsRecoveryMode(true)
-        setNotice({ tone: "success", message: "Enlace validado. Ya puedes definir tu nueva contraseña." })
+        setNotice({
+          tone: "success",
+          message: "Enlace validado. Ya puedes definir tu nueva contraseña.",
+        })
         router.replace("/login?recovery=1")
         router.refresh()
         return
@@ -158,7 +194,10 @@ export function LoginForm() {
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsRecoveryMode(true)
-        setNotice({ tone: "success", message: "Ya puedes definir una nueva contraseña." })
+        setNotice({
+          tone: "success",
+          message: "Ya puedes definir una nueva contraseña.",
+        })
         router.replace("/login?recovery=1")
         router.refresh()
       }
@@ -179,7 +218,10 @@ export function LoginForm() {
     setLoading(true)
     setNotice(null)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
     if (error) {
       setNotice({ tone: "error", message: toSpanishAuthMessage(error.message) })
@@ -187,7 +229,10 @@ export function LoginForm() {
       return
     }
 
-    setNotice({ tone: "success", message: "Inicio de sesión exitoso. Redirigiendo..." })
+    setNotice({
+      tone: "success",
+      message: "Inicio de sesión exitoso. Redirigiendo...",
+    })
     router.replace(nextPath)
     router.refresh()
   }
@@ -214,7 +259,10 @@ export function LoginForm() {
 
   async function handleForgotPassword() {
     if (!email) {
-      setNotice({ tone: "error", message: "Ingresa tu correo para recuperar tu contraseña." })
+      setNotice({
+        tone: "error",
+        message: "Ingresa tu correo para recuperar tu contraseña.",
+      })
       return
     }
 
@@ -246,12 +294,18 @@ export function LoginForm() {
     event.preventDefault()
 
     if (!newPassword || newPassword.length < 8) {
-      setNotice({ tone: "error", message: "La nueva contraseña debe tener al menos 8 caracteres." })
+      setNotice({
+        tone: "error",
+        message: "La nueva contraseña debe tener al menos 8 caracteres.",
+      })
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setNotice({ tone: "error", message: "La confirmación de contraseña no coincide." })
+      setNotice({
+        tone: "error",
+        message: "La confirmación de contraseña no coincide.",
+      })
       return
     }
 
@@ -266,7 +320,10 @@ export function LoginForm() {
       return
     }
 
-    setNotice({ tone: "success", message: "Contraseña actualizada correctamente." })
+    setNotice({
+      tone: "success",
+      message: "Contraseña actualizada correctamente.",
+    })
     setNewPassword("")
     setConfirmPassword("")
     setIsRecoveryMode(false)
@@ -278,7 +335,9 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{recoveryMode ? "Definir nueva contraseña" : "Iniciar sesión"}</CardTitle>
+        <CardTitle>
+          {recoveryMode ? "Definir nueva contraseña" : "Iniciar sesión"}
+        </CardTitle>
         <CardDescription>
           {recoveryMode
             ? "Completa la recuperación para continuar."
@@ -287,8 +346,16 @@ export function LoginForm() {
       </CardHeader>
       <CardContent className="space-y-4">
         {notice || providerError ? (
-          <Alert variant={notice?.tone === "error" || providerError ? "destructive" : "success"}>
-            <AlertDescription>{notice?.message ?? providerError}</AlertDescription>
+          <Alert
+            variant={
+              notice?.tone === "error" || providerError
+                ? "destructive"
+                : "success"
+            }
+          >
+            <AlertDescription>
+              {notice?.message ?? providerError}
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -306,7 +373,9 @@ export function LoginForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirmar nueva contraseña</Label>
+              <Label htmlFor="confirm-password">
+                Confirmar nueva contraseña
+              </Label>
               <Input
                 id="confirm-password"
                 type="password"
@@ -352,11 +421,23 @@ export function LoginForm() {
               </Button>
             </form>
 
-            <Button className="w-full" type="button" variant="outline" onClick={handleGoogleSignIn} disabled={loading}>
+            <Button
+              className="w-full"
+              type="button"
+              variant="outline"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+            >
               Continuar con Google
             </Button>
 
-            <Button className="w-full" type="button" variant="ghost" onClick={handleForgotPassword} disabled={loading}>
+            <Button
+              className="w-full"
+              type="button"
+              variant="ghost"
+              onClick={handleForgotPassword}
+              disabled={loading}
+            >
               ¿Olvidaste tu contraseña?
             </Button>
           </>
@@ -365,7 +446,10 @@ export function LoginForm() {
       <CardFooter className="justify-center text-sm text-muted-foreground">
         <span>
           ¿No tienes cuenta?{" "}
-          <Link href="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+          <Link
+            href="/signup"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
             Crear cuenta
           </Link>
         </span>
