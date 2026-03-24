@@ -19,7 +19,6 @@ function isRecoveryRequest(request: NextRequest) {
   return (
     params.get("recovery") === "1" ||
     params.get("type") === "recovery" ||
-    params.has("code") ||
     params.has("token_hash")
   )
 }
