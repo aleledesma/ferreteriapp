@@ -65,6 +65,7 @@ Relationships follow a **relational database design implemented with PostgreSQL 
 - Prefer **clear and maintainable code over complex abstractions**.
 - Keep components and modules **small and focused**.
 - Avoid unnecessary dependencies.
+- All **user-facing UI text must always be in Spanish**.
 
 ## Agent Rules
 
