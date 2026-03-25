@@ -1,9 +1,12 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { INACTIVE_APP_ROLE, resolveAppRole } from "@/lib/auth/resolve-app-role"
 import { getSupabaseEnvs } from "./getSupabaseEnvs"
 
-const PUBLIC_PATHS = new Set(["/login", "/signup", "/sign-up"])
+const PUBLIC_PATHS = new Set(["/login", "/signup"])
+const INACTIVE_ROLE = INACTIVE_APP_ROLE
+const NO_ACCESS_PATH = "/no-access"
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.has(pathname)
@@ -34,9 +37,13 @@ export async function updateSession(request: NextRequest) {
         return request.cookies.getAll()
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        cookiesToSet.forEach(({ name, value }) =>
+          request.cookies.set(name, value),
+        )
         response = NextResponse.next({ request })
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        )
       },
     },
   })
@@ -46,10 +53,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-
-  if (pathname === "/sign-up") {
-    return NextResponse.redirect(new URL("/signup", request.url))
-  }
+  const appRole = user ? await resolveAppRole(supabase) : INACTIVE_ROLE
 
   if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone()
@@ -61,12 +65,29 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  if (user) {
+    const isInactive = appRole === INACTIVE_ROLE
+
+    if (isInactive && pathname === "/") {
+      return NextResponse.redirect(new URL(NO_ACCESS_PATH, request.url))
+    }
+
+    if (isInactive && !isPublicPath(pathname) && pathname !== NO_ACCESS_PATH) {
+      return NextResponse.redirect(new URL(NO_ACCESS_PATH, request.url))
+    }
+
+    if (!isInactive && pathname === NO_ACCESS_PATH) {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+  }
+
   if (user && (pathname === "/login" || pathname === "/signup")) {
     if (pathname === "/login" && isRecoveryRequest(request)) {
       return response
     }
 
-    return NextResponse.redirect(new URL("/", request.url))
+    const destination = appRole === INACTIVE_ROLE ? NO_ACCESS_PATH : "/"
+    return NextResponse.redirect(new URL(destination, request.url))
   }
 
   return response

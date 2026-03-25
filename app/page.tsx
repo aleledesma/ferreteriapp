@@ -10,6 +10,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import {
+  AuthorizationError,
+  requirePermission,
+} from "@/lib/auth/require-permission"
 
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient()
@@ -19,6 +23,19 @@ export default async function HomePage() {
 
   if (!user) {
     redirect("/login")
+  }
+
+  let appRole = "INACTIVE"
+
+  try {
+    const result = await requirePermission("dashboard.read")
+    appRole = result.role
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      redirect("/no-access")
+    }
+
+    throw error
   }
 
   async function handleSignOut() {
@@ -35,14 +52,22 @@ export default async function HomePage() {
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle>FerreteriApp</CardTitle>
-          <CardDescription>Área privada del panel (protegida con Supabase Auth).</CardDescription>
+          <CardDescription>
+            Área privada del panel (protegida con Supabase Auth).
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            Sesión iniciada como: <span className="font-medium">{user.email}</span>
+            Sesión iniciada como:{" "}
+            <span className="font-medium">{user.email}</span>
           </p>
           <p className="text-muted-foreground">
-            Las rutas son privadas por defecto. Solo <code>/login</code> y <code>/signup</code> son públicas.
+            Las rutas son privadas por defecto. Solo <code>/login</code> y{" "}
+            <code>/signup</code> son públicas.
+          </p>
+          <p className="text-muted-foreground">
+            Rol detectado en sesión:{" "}
+            <span className="font-medium">{appRole}</span>
           </p>
         </CardContent>
         <CardFooter>
