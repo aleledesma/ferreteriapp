@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 
@@ -28,6 +28,8 @@ type Notice = {
 }
 
 const RECOVERY_TYPE = "recovery"
+const STALE_PERMISSIONS_MESSAGE =
+  "Tus permisos cambiaron, vuelve a iniciar sesión."
 
 function getSafeNextPath(nextParam: string | null) {
   if (!nextParam || !nextParam.startsWith("/")) {
@@ -66,6 +68,34 @@ export function LoginForm() {
         },
       )
     : null
+
+  const ensureFreshRoleClaims = useCallback(async () => {
+    const { error } = await supabase.auth.refreshSession()
+
+    if (error) {
+      await supabase.auth.signOut()
+      setNotice({ tone: "error", message: STALE_PERMISSIONS_MESSAGE })
+      setLoading(false)
+      router.replace("/login")
+      router.refresh()
+      return false
+    }
+
+    const { data: claimsData } = await supabase.auth.getClaims()
+    const appRole = (claimsData?.claims as { app_role?: unknown } | undefined)
+      ?.app_role
+
+    if (typeof appRole !== "string" || appRole.trim().length === 0) {
+      await supabase.auth.signOut()
+      setNotice({ tone: "error", message: STALE_PERMISSIONS_MESSAGE })
+      setLoading(false)
+      router.replace("/login")
+      router.refresh()
+      return false
+    }
+
+    return true
+  }, [router, supabase.auth])
 
   useEffect(() => {
     const code = searchParams.get("code")
@@ -179,6 +209,11 @@ export function LoginForm() {
         return
       }
 
+      const hasFreshClaims = await ensureFreshRoleClaims()
+      if (!mounted || !hasFreshClaims) {
+        return
+      }
+
       router.replace(nextPath)
       router.refresh()
     })()
@@ -186,7 +221,14 @@ export function LoginForm() {
     return () => {
       mounted = false
     }
-  }, [isRecoveryQuery, nextPath, router, searchParams, supabase.auth])
+  }, [
+    ensureFreshRoleClaims,
+    isRecoveryQuery,
+    nextPath,
+    router,
+    searchParams,
+    supabase.auth,
+  ])
 
   useEffect(() => {
     const {
@@ -226,6 +268,11 @@ export function LoginForm() {
     if (error) {
       setNotice({ tone: "error", message: toSpanishAuthMessage(error.message) })
       setLoading(false)
+      return
+    }
+
+    const hasFreshClaims = await ensureFreshRoleClaims()
+    if (!hasFreshClaims) {
       return
     }
 

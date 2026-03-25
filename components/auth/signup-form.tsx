@@ -45,7 +45,8 @@ export function SignupForm() {
 
     setNotice({
       tone: "success",
-      message: "Cuenta creada. Revisa tu correo si se requiere confirmación.",
+      message:
+        "Cuenta creada. Tu acceso quedará inactivo hasta que un administrador lo habilite. Revisa tu correo si se requiere confirmación.",
     })
     setLoading(false)
   }
