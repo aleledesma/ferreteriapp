@@ -1,15 +1,25 @@
-import { AuthShell } from "@/components/auth/auth-shell"
-import { LoginForm } from "@/components/auth/login-form"
-
-export const dynamic = "force-dynamic"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export default function LoginPage() {
   return (
-    <AuthShell
-      title="Bienvenido de nuevo"
-      description="Ingresa con tu cuenta o continúa con Google."
-    >
-      <LoginForm />
-    </AuthShell>
+    <main className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Acceso temporalmente deshabilitado</CardTitle>
+          <CardDescription>
+            Esta pantalla se reimplementará con Auth.js (Google OAuth).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          La autenticación anterior fue removida como parte de la limpieza de la Fase A.
+        </CardContent>
+      </Card>
+    </main>
   )
 }
