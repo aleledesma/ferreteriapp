@@ -1,33 +1,48 @@
-# Configuración inicial de base de datos (base nueva)
+# Configuración inicial (Auth.js + Prisma + Google OAuth)
 
-Esta guía asume una base nueva, sin datos ni estructuras previas.
+Esta guía es para levantar el módulo de autenticación desde cero en una base nueva.
 
-## 1) Variable de entorno mínima
+## 1) Variables de entorno
 
-En `.env` necesitás:
+Configura en `.env`:
 
 - `DATABASE_URL`
+- `AUTH_SECRET`
+- `AUTH_GOOGLE_ID`
+- `AUTH_GOOGLE_SECRET`
+- `AUTH_TRUST_HOST=true` (recomendado en desarrollo)
+- `AUTH_BOOTSTRAP_ADMIN_EMAIL` (opcional, para promocionar automáticamente al primer admin)
 
-## 2) Estado actual de migraciones
+## 2) Instalar dependencias
 
 ```bash
+npm install
+```
+
+## 3) Generar cliente Prisma y aplicar migraciones
+
+```bash
+npx prisma generate
 npx prisma migrate deploy
 ```
 
-En este punto no hay migraciones funcionales activas para auth.
-La implementación de Auth.js y la nueva tabla de usuarios se agregarán en la Fase B.
+## 4) Configurar Google OAuth
 
-## 3) Verificación rápida
+En Google Cloud Console:
 
-```sql
-select to_regclass('public.app_roles') as app_roles;
-select to_regprocedure('public.custom_access_token_hook(jsonb)') as custom_access_token_hook;
-select to_regprocedure('public.authorize(text)') as authorize_fn;
+1. Crea credenciales OAuth 2.0.
+2. Agrega URI autorizado para callback:
+   - `http://localhost:3000/api/auth/callback/google`
+3. En producción agrega tu dominio real con la misma ruta de callback.
+
+## 5) Levantar la app
+
+```bash
+npm run dev
 ```
 
-El resultado esperado es `null` en las tres consultas.
+## 6) Verificación rápida
 
-## 4) Nota
-
-En esta fase no se ejecuta seed ni hooks de autenticación.
-Eso se configurará en la siguiente fase cuando se integre Auth.js.
+1. Entra a `/login` y autentica con Google.
+2. Verifica que se crean registros en `users`, `accounts` y `sessions`.
+3. Si configuraste `AUTH_BOOTSTRAP_ADMIN_EMAIL`, ese usuario entra como `ADMIN` (solo si todavía no existe otro admin).
