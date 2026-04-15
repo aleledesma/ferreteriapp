@@ -1,25 +1,24 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { signIn } from "@/auth"
+import { GoogleAuthCard } from "@/components/auth/google-auth-card"
 
 export default function LoginPage() {
+  async function handleGoogleSignIn() {
+    "use server"
+
+    await signIn("google", { redirectTo: "/" })
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Acceso temporalmente deshabilitado</CardTitle>
-          <CardDescription>
-            Esta pantalla se reimplementará con Auth.js (Google OAuth).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          La autenticación anterior fue removida como parte de la limpieza de la Fase A.
-        </CardContent>
-      </Card>
+      <GoogleAuthCard
+        title="Iniciar sesión"
+        description="Accede con tu cuenta de Google para ingresar a FerreteriApp."
+        buttonLabel="Continuar con Google"
+        footerText="¿Todavía no tienes cuenta?"
+        footerLinkLabel="Ir al registro"
+        footerLinkHref="/signup"
+        onSubmit={handleGoogleSignIn}
+      />
     </main>
   )
 }
