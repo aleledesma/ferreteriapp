@@ -67,6 +67,10 @@ Relationships follow a **relational database design implemented with PostgreSQL 
 - Avoid unnecessary dependencies.
 - Keep non-UI naming in English (routes, file/folder names, identifiers, comments).
 - All **user-facing UI text must always be in Spanish**.
+- For UI/UX work, use the **frontend-design** skill first.
+- Prefer **shadcn/ui** for visual primitives and install required components with the shadcn CLI when needed.
+- UI implementations must include clear loading, success, and error states from the beginning.
+- Favor polished micro-interactions and subtle animations when they improve clarity and perceived quality.
 
 ## Agent Rules
 
@@ -78,3 +82,4 @@ AI agents working in this repository must:
 4. Prefer simple and maintainable implementations.
 5. Do not modify the core data model unless explicitly requested.
 6. If clarification is needed during execution, use the interactive `question` tool instead of pausing the session with open-ended prompts.
+7. For UI tasks, prioritize shadcn-based implementations and production-grade UX from the first iteration.
