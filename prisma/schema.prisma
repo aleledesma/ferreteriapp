@@ -12,6 +12,30 @@ enum UserRole {
   ADMIN
 }
 
+enum PriceListSource {
+  IMPORTED
+  MANUAL
+}
+
+enum PriceListStatus {
+  DRAFT
+  PROCESSED
+  FAILED
+  ARCHIVED
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum StockMovementType {
+  INITIAL
+  SALE
+  MANUAL_ADJUSTMENT
+  PRICE_LIST_UPDATE
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -23,6 +47,9 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   accounts      Account[]
   sessions      Session[]
+  uploadedPriceLists SupplierPriceList[] @relation("PriceListUploadedBy")
+  sales         Sale[]    @relation("SaleCreatedBy")
+  stockMovements StockMovement[] @relation("StockMovementCreatedBy")
 
   @@map("users")
 }
@@ -69,4 +96,178 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model Supplier {
+  id          String              @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?             @db.Text
+  isActive    Boolean             @default(true) @map("is_active")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  priceLists  SupplierPriceList[]
+  products    Product[]
+
+  @@map("suppliers")
+}
+
+model SupplierPriceList {
+  id               String                  @id @default(cuid())
+  supplierId       String                  @map("supplier_id")
+  uploadedByUserId String?                 @map("uploaded_by_user_id")
+  sourceType       PriceListSource         @default(IMPORTED) @map("source_type")
+  status           PriceListStatus         @default(DRAFT)
+  name             String
+  sourceFileName   String?                 @map("source_file_name")
+  effectiveAt      DateTime?               @map("effective_at")
+  notes            String?                 @db.Text
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  supplier         Supplier                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  uploadedBy       User?                   @relation("PriceListUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  items            SupplierPriceListItem[]
+  currentProducts  Product[]               @relation("CurrentSupplierPriceList")
+
+  @@index([supplierId])
+  @@index([uploadedByUserId])
+  @@index([status])
+  @@map("supplier_price_lists")
+}
+
+model Product {
+  id                 String                  @id @default(cuid())
+  supplierId         String                  @map("supplier_id")
+  currentPriceListId String?                 @map("current_price_list_id")
+  supplierProductCode String                 @map("supplier_product_code")
+  name               String
+  description        String?                 @db.Text
+  brand              String?
+  categoryCode       String?                 @map("category_code")
+  categoryName       String?                 @map("category_name")
+  barcode            String?
+  costPrice          Decimal                 @map("cost_price") @db.Decimal(12, 2)
+  salePrice          Decimal                 @map("sale_price") @db.Decimal(12, 2)
+  stock              Int                     @default(0)
+  minStock           Int                     @default(0) @map("min_stock")
+  isActive           Boolean                 @default(true) @map("is_active")
+  isForSale          Boolean                 @default(true) @map("is_for_sale")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  supplier           Supplier                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  currentPriceList   SupplierPriceList?      @relation("CurrentSupplierPriceList", fields: [currentPriceListId], references: [id], onDelete: SetNull)
+  priceListItems     SupplierPriceListItem[]
+  saleItems          SaleItem[]
+  stockMovements     StockMovement[]
+
+  @@unique([supplierId, supplierProductCode])
+  @@index([supplierId])
+  @@index([currentPriceListId])
+  @@index([name])
+  @@map("products")
+}
+
+model SupplierPriceListItem {
+  id                  String            @id @default(cuid())
+  priceListId         String            @map("price_list_id")
+  productId           String?           @map("product_id")
+  supplierProductCode String            @map("supplier_product_code")
+  rawName             String            @map("raw_name")
+  rawDescription      String?           @map("raw_description") @db.Text
+  brand               String?
+  categoryCode        String?           @map("category_code")
+  categoryName        String?           @map("category_name")
+  barcode             String?
+  listPrice           Decimal?          @map("list_price") @db.Decimal(12, 2)
+  offerPrice          Decimal?          @map("offer_price") @db.Decimal(12, 2)
+  vatRate             Decimal?          @map("vat_rate") @db.Decimal(5, 2)
+  isSelectedForSale   Boolean           @default(true) @map("is_selected_for_sale")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  priceList           SupplierPriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product             Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([priceListId])
+  @@index([productId])
+  @@index([supplierProductCode])
+  @@map("supplier_price_list_items")
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  email       String?   @unique
+  phone       String?
+  address     String?
+  notes       String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  sales       Sale[]
+
+  @@index([lastName, firstName])
+  @@map("customers")
+}
+
+model Sale {
+  id              String      @id @default(cuid())
+  customerId      String?     @map("customer_id")
+  createdByUserId String      @map("created_by_user_id")
+  status          SaleStatus  @default(COMPLETED)
+  saleDate        DateTime    @default(now()) @map("sale_date")
+  subtotal        Decimal     @db.Decimal(12, 2)
+  total           Decimal     @db.Decimal(12, 2)
+  notes           String?     @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy       User        @relation("SaleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           SaleItem[]
+
+  @@index([customerId])
+  @@index([createdByUserId])
+  @@index([saleDate])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String        @id @default(cuid())
+  saleId      String        @map("sale_id")
+  productId   String        @map("product_id")
+  quantity    Int
+  unitPrice   Decimal       @map("unit_price") @db.Decimal(12, 2)
+  subtotal    Decimal       @db.Decimal(12, 2)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  sale        Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  stockMovements StockMovement[]
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model StockMovement {
+  id              String            @id @default(cuid())
+  productId       String            @map("product_id")
+  saleItemId      String?           @map("sale_item_id")
+  createdByUserId String?           @map("created_by_user_id")
+  type            StockMovementType
+  quantityDelta   Int               @map("quantity_delta")
+  previousStock   Int?              @map("previous_stock")
+  nextStock       Int?              @map("next_stock")
+  notes           String?           @db.Text
+  createdAt       DateTime          @default(now()) @map("created_at")
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  saleItem        SaleItem?         @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([saleItemId])
+  @@index([createdByUserId])
+  @@index([type])
+  @@map("stock_movements")
 }
