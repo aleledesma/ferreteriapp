@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "proveedores-normalizacion-placeholder",
-        "responseMode": "lastNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "a4cc8cf1-106c-4a26-9567-c2ea306e72a1",
@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const payload = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst configuredToken = 'api-key-test';\nconst providedToken = String(headers['x-ingest-token'] || headers['X-Ingest-Token'] || '').trim();\n\nif (configuredToken && providedToken !== configuredToken) {\n  throw new Error('Token invalido o ausente en header x-ingest-token');\n}\n\nconst proveedores = [];\nif (Array.isArray(payload)) {\n  for (const [i, entry] of payload.entries()) {\n    const proveedor = entry?.proveedor ?? entry?.supplier ?? `proveedor_${i + 1}`;\n    const productos = Array.isArray(entry?.productos) ? entry.productos : (Array.isArray(entry?.products) ? entry.products : []);\n    proveedores.push({ proveedor, productos });\n  }\n} else if (payload && typeof payload === 'object') {\n  for (const [proveedor, productos] of Object.entries(payload)) {\n    proveedores.push({\n      proveedor,\n      productos: Array.isArray(productos) ? productos : [productos],\n    });\n  }\n}\n\nif (!proveedores.length) throw new Error('No se detectaron proveedores/productos en el payload');\n\nconst maxSuppliers = 3;\nconst maxProductsPerSupplier = 30000;\nif (proveedores.length > maxSuppliers) {\n  throw new Error(`Cantidad de proveedores excede limite (${maxSuppliers})`);\n}\nfor (const item of proveedores) {\n  if ((item.productos || []).length > maxProductsPerSupplier) {\n    throw new Error(`Proveedor ${item.proveedor} excede limite de productos (${maxProductsPerSupplier})`);\n  }\n}\n\nconst traceId = headers['x-request-id'] || headers['X-Request-Id'] || `trace_${Date.now()}`;\nreturn [{ json: { receivedAt: new Date().toISOString(), traceId, proveedores } }];",
+        "jsCode": "const payload = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst configuredToken = 'api-key-test';\nconst providedToken = String(headers['x-ingest-token'] || headers['X-Ingest-Token'] || '').trim();\n\nif (configuredToken && providedToken !== configuredToken) {\n  throw new Error('Token invalido o ausente en header x-ingest-token');\n}\n\nconst callbackUrl = String(headers['x-callback-url'] || headers['X-Callback-Url'] || '').trim();\nconst callbackToken = String(headers['x-callback-token'] || headers['X-Callback-Token'] || '').trim();\n\nif (!callbackUrl) {\n  throw new Error('No se recibio x-callback-url');\n}\n\nif (!callbackToken) {\n  throw new Error('No se recibio x-callback-token');\n}\n\nconst proveedores = [];\nif (Array.isArray(payload)) {\n  for (const [i, entry] of payload.entries()) {\n    const proveedor = entry?.proveedor ?? entry?.supplier ?? `proveedor_${i + 1}`;\n    const metadata = entry?.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};\n    const productos = Array.isArray(entry?.productos) ? entry.productos : (Array.isArray(entry?.products) ? entry.products : []);\n    proveedores.push({ proveedor, metadata, productos });\n  }\n} else if (payload && typeof payload === 'object') {\n  for (const [proveedor, productos] of Object.entries(payload)) {\n    proveedores.push({\n      proveedor,\n      metadata: {},\n      productos: Array.isArray(productos) ? productos : [productos],\n    });\n  }\n}\n\nif (!proveedores.length) throw new Error('No se detectaron proveedores/productos en el payload');\n\nconst maxSuppliers = 3;\nconst maxProductsPerSupplier = 30000;\nif (proveedores.length > maxSuppliers) {\n  throw new Error(`Cantidad de proveedores excede limite (${maxSuppliers})`);\n}\nfor (const item of proveedores) {\n  if ((item.productos || []).length > maxProductsPerSupplier) {\n    throw new Error(`Proveedor ${item.proveedor} excede limite de productos (${maxProductsPerSupplier})`);\n  }\n}\n\nconst traceId = headers['x-request-id'] || headers['X-Request-Id'] || `trace_${Date.now()}`;\nreturn [{ json: { receivedAt: new Date().toISOString(), traceId, callbackUrl, callbackToken, proveedores } }];",
         "mode": "runOnceForAllItems"
       },
       "id": "5dd95fd4-c618-4257-9f48-b7533c45f7c9",
@@ -33,7 +33,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const proveedores = Array.isArray($json.proveedores) ? $json.proveedores : [];\n\nif (!proveedores.length) {\n  throw new Error('No hay proveedores para procesar');\n}\n\nreturn proveedores.map((entry, index) => ({\n  json: {\n    traceId: $json.traceId,\n    receivedAt: $json.receivedAt,\n    supplierName: String(entry?.proveedor ?? `proveedor_${index + 1}`),\n    productos: Array.isArray(entry?.productos) ? entry.productos : [],\n  },\n}));",
+        "jsCode": "const proveedores = Array.isArray($json.proveedores) ? $json.proveedores : [];\n\nif (!proveedores.length) {\n  throw new Error('No hay proveedores para procesar');\n}\n\nreturn proveedores.map((entry, index) => ({\n  json: {\n    traceId: $json.traceId,\n    receivedAt: $json.receivedAt,\n    callbackUrl: $json.callbackUrl,\n    callbackToken: $json.callbackToken,\n    supplierName: String(entry?.proveedor ?? `proveedor_${index + 1}`),\n    metadata: entry?.metadata && typeof entry.metadata === 'object' ? entry.metadata : {},\n    productos: Array.isArray(entry?.productos) ? entry.productos : [],\n  },\n}));",
         "mode": "runOnceForAllItems"
       },
       "id": "e0c4ce81-4034-46ad-9d0e-0c0f5d0e5551",
@@ -132,7 +132,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const items = $input.all();\n\nconst providerResults = items.map((item) => ({\n  supplierName: item.json.supplierName || null,\n  pipelineOk: !!item.json.pipelineOk,\n  stage: item.json.stage || 'unknown',\n  error: item.json.error || null,\n  normalizedCount: Array.isArray(item.json.normalizedProducts)\n    ? item.json.normalizedProducts.length\n    : 0,\n  warnings: Array.isArray(item.json.providerWarnings)\n    ? item.json.providerWarnings\n    : [],\n}));\n\nconst normalizedProducts = items.flatMap((item) =>\n  Array.isArray(item.json.normalizedProducts) ? item.json.normalizedProducts : [],\n);\n\nconst failedProviders = providerResults.filter((r) => !r.pipelineOk).length;\n\nreturn [{\n  json: {\n    ok: failedProviders === 0,\n    stage: 'completed',\n    error: failedProviders\n      ? `Fallaron ${failedProviders} proveedor(es) durante el procesamiento.`\n      : null,\n    totalProviders: providerResults.length,\n    totalNormalizedProducts: normalizedProducts.length,\n    normalizedProducts,\n    providerResults,\n  },\n}];"
+        "jsCode": "const items = $input.all();\nconst first = items[0]?.json || {};\n\nconst providerResults = items.map((item) => ({\n  supplierName: item.json.supplierName || null,\n  pipelineOk: !!item.json.pipelineOk,\n  stage: item.json.stage || 'unknown',\n  error: item.json.error || null,\n  normalizedCount: Array.isArray(item.json.normalizedProducts)\n    ? item.json.normalizedProducts.length\n    : 0,\n  warnings: Array.isArray(item.json.providerWarnings)\n    ? item.json.providerWarnings\n    : [],\n}));\n\nconst normalizedProducts = items.flatMap((item) =>\n  Array.isArray(item.json.normalizedProducts) ? item.json.normalizedProducts : [],\n);\n\nconst supplierContexts = Object.fromEntries(\n  items\n    .filter((item) => item.json.supplierName)\n    .map((item) => [\n      item.json.supplierName,\n      {\n        sourceFileName: item.json.metadata?.sourceFileName || null,\n        uploadedByUserId: item.json.metadata?.uploadedByUserId || null,\n      },\n    ]),\n);\n\nconst failedProviders = providerResults.filter((r) => !r.pipelineOk).length;\n\nreturn [{\n  json: {\n    ok: failedProviders === 0,\n    stage: 'completed',\n    traceId: first.traceId || null,\n    callbackUrl: first.callbackUrl || null,\n    callbackToken: first.callbackToken || null,\n    error: failedProviders\n      ? `Fallaron ${failedProviders} proveedor(es) durante el procesamiento.`\n      : null,\n    totalProviders: providerResults.length,\n    totalNormalizedProducts: normalizedProducts.length,\n    normalizedProducts,\n    providerResults,\n    supplierContexts,\n  },\n}];"
       },
       "id": "13f64655-1483-41b9-89fe-213f2cd3a4c7",
       "name": "Respuesta",
@@ -145,7 +145,20 @@
     },
     {
       "parameters": {
-        "content": "SETUP ACTUAL (modo test hardcodeado):\\n- Credencial nativa: crear/seleccionar Google Gemini (PaLM) en el nodo 'LLM Mapeador'. API key desde AI Studio.\\n- Seguridad webhook hardcodeada: header x-ingest-token debe ser 'api-key-test'.\\n- Limites hardcodeados: maxSuppliers=3, maxProductsPerSupplier=30000 en 'Estandarizar entrada'.\\n- Estrategia eficiente: Gemini SOLO infiere mapping por proveedor usando headers + muestras + stats.\\n- La normalizacion masiva de filas se hace en codigo (sin LLM), reduciendo consumo de tokens.",
+        "jsCode": "const payload = $json;\nconst callbackUrl = String($json.callbackUrl || '').trim();\nconst callbackToken = String($json.callbackToken || '').trim();\n\nif (!callbackUrl) {\n  throw new Error('No se encontro callbackUrl para notificar el resultado');\n}\n\nconst callbackPayload = {\n  ok: payload.ok,\n  stage: payload.stage,\n  traceId: payload.traceId || null,\n  error: payload.error || null,\n  totalProviders: payload.totalProviders || 0,\n  totalNormalizedProducts: payload.totalNormalizedProducts || 0,\n  normalizedProducts: Array.isArray(payload.normalizedProducts) ? payload.normalizedProducts : [],\n  providerResults: Array.isArray(payload.providerResults) ? payload.providerResults : [],\n  supplierContexts: payload.supplierContexts && typeof payload.supplierContexts === 'object' ? payload.supplierContexts : {},\n};\n\nconst response = await fetch(callbackUrl, {\n  method: 'POST',\n  headers: {\n    'content-type': 'application/json',\n    'x-callback-token': callbackToken,\n  },\n  body: JSON.stringify(callbackPayload),\n});\n\nconst responseText = await response.text();\n\nreturn [{\n  json: {\n    callbackUrl,\n    callbackStatus: response.status,\n    callbackOk: response.ok,\n    callbackResponse: responseText || null,\n    traceId: payload.traceId || null,\n  },\n}];"
+      },
+      "id": "6f0d54e2-98a1-4b6c-9b68-8125fdb4dfd2",
+      "name": "Notificar callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "SETUP ACTUAL (modo asincrono):\\n- Credencial nativa: crear/seleccionar Google Gemini (PaLM) en el nodo 'LLM Mapeador'. API key desde AI Studio.\\n- Seguridad webhook hardcodeada: header x-ingest-token debe ser 'api-key-test'.\\n- El webhook responde inmediatamente mientras el flujo continua procesando en background.\\n- Deben enviarse headers x-callback-url y x-callback-token para notificar a la app cuando finaliza la normalizacion.\\n- Limites hardcodeados: maxSuppliers=3, maxProductsPerSupplier=30000 en 'Estandarizar entrada'.",
         "height": 220,
         "width": 700,
         "color": 5
@@ -161,7 +174,7 @@
     },
     {
       "parameters": {
-        "content": "SCHEMA OBJETIVO DE NORMALIZACION:\\n- normalizedProducts[] con campos: supplierName, sku, supplierSku, name, brand, category, listPrice, offerPrice, taxRate, barcode, originalProduct, confidence, warnings.\\n- El LLM devuelve mapping de columnas (no productos completos).\\n- El nodo 'Normalizar proveedor' aplica mapping y fallback por sinonimos para todas las filas.\\n- Cuando se cierre testing: volver a variables de entorno para token/limites y reagregar envio a backend.",
+        "content": "SCHEMA OBJETIVO DE NORMALIZACION:\\n- normalizedProducts[] con campos: supplierName, sku, supplierSku, name, brand, category, listPrice, offerPrice, taxRate, barcode, originalProduct, confidence, warnings.\\n- El LLM devuelve mapping de columnas (no productos completos).\\n- El nodo 'Normalizar proveedor' aplica mapping y fallback por sinonimos para todas las filas.\\n- El nodo 'Respuesta' agrega traceId y supplierContexts. Luego 'Notificar callback' envía el resultado final a la app.",
         "height": 220,
         "width": 680,
         "color": 6
@@ -248,6 +261,17 @@
         [
           {
             "node": "Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Notificar callback",
             "type": "main",
             "index": 0
           }
