@@ -67,13 +67,21 @@ function normalizeProduct(entry: unknown): NormalizedProduct | null {
 export function mapSupplierUploadBatchesToN8nPayload(
   batches: SupplierUploadBatch[],
 ): N8nIngestPayload {
-  return batches.map((batch) => ({
-    proveedor: batch.supplierName,
+  const groupedBatches = new Map<string, SupplierUploadBatch[]>()
+
+  for (const batch of batches) {
+    const current = groupedBatches.get(batch.supplierName) ?? []
+    current.push(batch)
+    groupedBatches.set(batch.supplierName, current)
+  }
+
+  return Array.from(groupedBatches.entries()).map(([supplierName, supplierBatches]) => ({
+    proveedor: supplierName,
     metadata: {
-      sourceFileName: batch.sourceFileName,
-      uploadedByUserId: batch.uploadedByUserId,
+      sourceFileName: supplierBatches.map((batch) => batch.sourceFileName).join(" | "),
+      uploadedByUserId: supplierBatches[0]?.uploadedByUserId ?? "",
     },
-    productos: batch.rows,
+    productos: supplierBatches.flatMap((batch) => batch.rows),
   }))
 }
 
