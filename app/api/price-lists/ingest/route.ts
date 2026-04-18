@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 
 import { getAuthorizedApiUser } from "@/lib/auth/api-guards"
-import { buildN8nIngestPayload, sendPriceListPayloadToN8n } from "@/lib/price-list-import/n8n-client"
+import {
+  buildN8nIngestPayload,
+  sendPriceListPayloadToN8n,
+} from "@/lib/price-list-import/n8n-client"
 import { mapSupplierUploadBatchesToN8nPayload } from "@/lib/price-list-import/normalization-response"
 import { buildSupplierUploadBatches } from "@/lib/price-list-import/spreadsheet"
 
@@ -20,7 +23,7 @@ export async function POST(request: Request) {
       uploadedByUserId: authorization.user.id,
     })
     const payload = mapSupplierUploadBatchesToN8nPayload(uploadBatches)
-    const callbackUrl = new URL("/api/price-lists/normalized", request.url).toString()
+    const callbackUrl = `${process.env.APP_CALLBACK_BASE_URL}/api/price-lists/normalized`
 
     const n8nResponse = await sendPriceListPayloadToN8n(
       buildN8nIngestPayload(payload),
@@ -43,7 +46,10 @@ export async function POST(request: Request) {
       { status: 202 },
     )
   } catch (error) {
-    const message = error instanceof Error ? error.message : "No se pudo iniciar la importación." 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "No se pudo iniciar la importación."
 
     return NextResponse.json({ error: message }, { status: 400 })
   }

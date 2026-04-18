@@ -155,7 +155,6 @@ export async function buildSupplierUploadBatches({
   }
 
   const batches: SupplierUploadBatch[] = []
-  const seenSupplierNames = new Set<string>()
 
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index]
@@ -170,11 +169,6 @@ export async function buildSupplierUploadBatches({
     }
 
     const normalizedSupplierName = supplierName.trim()
-    if (seenSupplierNames.has(normalizedSupplierName)) {
-      throw new Error(`El proveedor ${normalizedSupplierName} está repetido en la misma importación.`)
-    }
-
-    seenSupplierNames.add(normalizedSupplierName)
 
     const rows = await parseSpreadsheetFile(file)
     if (!rows.length) {

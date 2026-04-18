@@ -53,6 +53,26 @@ function buildPriceListName(supplierName: string, sourceFileName?: string) {
   return `${supplierName} - ${dateStamp}`
 }
 
+function buildProductUpdateData(
+  product: NormalizedProduct,
+  priceListId: string,
+  costPrice: number,
+  salePrice: Prisma.Decimal | number,
+  name: string,
+) {
+  return {
+    currentPriceListId: priceListId,
+    name,
+    description: resolveProductDescription(product),
+    brand: toNullableText(product.brand),
+    categoryCode: null,
+    categoryName: toNullableText(product.category),
+    barcode: toNullableText(product.barcode),
+    costPrice,
+    salePrice,
+  }
+}
+
 async function getOrCreateSupplier(tx: Prisma.TransactionClient, supplierName: string) {
   const existingSupplier = await tx.supplier.findFirst({
     where: {
@@ -106,22 +126,87 @@ export async function persistNormalizedSupplierGroup({
     let itemsImported = 0
     let itemsSkipped = 0
 
-    for (const product of products) {
-      const supplierProductCode = resolveSupplierProductCode(product)
-      const name = resolveProductName(product)
-      const costPrice = resolveProductCost(product)
+    const candidates = products
+      .map((product) => {
+        const supplierProductCode = resolveSupplierProductCode(product)
+        const name = resolveProductName(product)
+        const costPrice = resolveProductCost(product)
 
-      if (!supplierProductCode || !name || costPrice === null) {
-        itemsSkipped += 1
+        if (!supplierProductCode || !name || costPrice === null) {
+          return null
+        }
+
+        return {
+          product,
+          supplierProductCode,
+          name,
+          costPrice,
+        }
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+    itemsSkipped += products.length - candidates.length
+
+    const existingProducts = candidates.length
+      ? await tx.product.findMany({
+          where: {
+            supplierId: supplier.id,
+            supplierProductCode: {
+              in: candidates.map((entry) => entry.supplierProductCode),
+            },
+          },
+          select: {
+            id: true,
+            supplierProductCode: true,
+            salePrice: true,
+          },
+        })
+      : []
+
+    const existingProductMap = new Map(
+      existingProducts.map((existingProduct) => [
+        existingProduct.supplierProductCode,
+        existingProduct,
+      ]),
+    )
+
+    const productRecords = new Map<string, { id: string; salePrice: Prisma.Decimal | number }>()
+
+    for (const candidate of candidates) {
+      const existingProduct = existingProductMap.get(candidate.supplierProductCode)
+
+      if (existingProduct) {
+        const updatedProduct = await tx.product.update({
+          where: { id: existingProduct.id },
+          data: buildProductUpdateData(
+            candidate.product,
+            priceList.id,
+            candidate.costPrice,
+            existingProduct.salePrice,
+            candidate.name,
+          ),
+          select: {
+            id: true,
+            salePrice: true,
+          },
+        })
+
+        productRecords.set(candidate.supplierProductCode, updatedProduct)
+        productsUpdated += 1
         continue
       }
 
-      const existingProduct = await tx.product.findUnique({
-        where: {
-          supplierId_supplierProductCode: {
-            supplierId: supplier.id,
-            supplierProductCode,
-          },
+      const createdProduct = await tx.product.create({
+        data: {
+          supplierId: supplier.id,
+          supplierProductCode: candidate.supplierProductCode,
+          ...buildProductUpdateData(
+            candidate.product,
+            priceList.id,
+            candidate.costPrice,
+            candidate.costPrice,
+            candidate.name,
+          ),
         },
         select: {
           id: true,
@@ -129,62 +214,36 @@ export async function persistNormalizedSupplierGroup({
         },
       })
 
-      const productRecord = existingProduct
-        ? await tx.product.update({
-            where: { id: existingProduct.id },
-            data: {
-              currentPriceListId: priceList.id,
-              name,
-              description: resolveProductDescription(product),
-              brand: toNullableText(product.brand),
-              categoryCode: null,
-              categoryName: toNullableText(product.category),
-              barcode: toNullableText(product.barcode),
-              costPrice,
-              salePrice: existingProduct.salePrice,
-            },
-          })
-        : await tx.product.create({
-            data: {
-              supplierId: supplier.id,
-              currentPriceListId: priceList.id,
-              supplierProductCode,
-              name,
-              description: resolveProductDescription(product),
-              brand: toNullableText(product.brand),
-              categoryCode: null,
-              categoryName: toNullableText(product.category),
-              barcode: toNullableText(product.barcode),
-              costPrice,
-              salePrice: costPrice,
-            },
-          })
-
-      if (existingProduct) {
-        productsUpdated += 1
-      } else {
-        productsCreated += 1
-      }
-
-      await tx.supplierPriceListItem.create({
-        data: {
-          priceListId: priceList.id,
-          productId: productRecord.id,
-          supplierProductCode,
-          rawName: name,
-          rawDescription: resolveProductDescription(product),
-          brand: toNullableText(product.brand),
-          categoryCode: null,
-          categoryName: toNullableText(product.category),
-          barcode: toNullableText(product.barcode),
-          listPrice: toNullableNumber(product.listPrice),
-          offerPrice: toNullableNumber(product.offerPrice),
-          vatRate: toNullableNumber(product.taxRate),
-        },
-      })
-
-      itemsImported += 1
+      productRecords.set(candidate.supplierProductCode, createdProduct)
+      productsCreated += 1
     }
+
+    const priceListItems = candidates.map((candidate) => {
+      const linkedProduct = productRecords.get(candidate.supplierProductCode)
+
+      return {
+        priceListId: priceList.id,
+        productId: linkedProduct?.id,
+        supplierProductCode: candidate.supplierProductCode,
+        rawName: candidate.name,
+        rawDescription: resolveProductDescription(candidate.product),
+        brand: toNullableText(candidate.product.brand),
+        categoryCode: null,
+        categoryName: toNullableText(candidate.product.category),
+        barcode: toNullableText(candidate.product.barcode),
+        listPrice: toNullableNumber(candidate.product.listPrice),
+        offerPrice: toNullableNumber(candidate.product.offerPrice),
+        vatRate: toNullableNumber(candidate.product.taxRate),
+      }
+    })
+
+    if (priceListItems.length > 0) {
+      await tx.supplierPriceListItem.createMany({
+        data: priceListItems,
+      })
+    }
+
+    itemsImported += priceListItems.length
 
     return {
       supplierName,
@@ -194,7 +253,7 @@ export async function persistNormalizedSupplierGroup({
       itemsImported,
       itemsSkipped,
     }
-  })
+  }, { timeout: 20000 })
 }
 
 export function buildPersistSummary(
