@@ -1,8 +1,17 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
-import { FileSpreadsheet, Loader2, Sparkles, Trash2, UploadCloud } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  ArrowRightCircle,
+  FileSpreadsheet,
+  FolderPlus,
+  Loader2,
+  Plus,
+  Trash2,
+  UploadCloud,
+} from "lucide-react"
 
+import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,13 +22,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import type {
+  SupplierListItem,
+  SupplierListResult,
+} from "@/lib/suppliers/types"
 
-type UploadEntry = {
+type UploadFileEntry = {
   id: string
   file: File
-  supplierName: string
+}
+
+type SupplierUploadGroup = {
+  id: string
+  supplierId: string
+  files: UploadFileEntry[]
 }
 
 type Notice = {
@@ -46,48 +70,137 @@ function isSupportedFile(file: File) {
   return ACCEPTED_EXTENSIONS.includes(getFileExtension(file.name))
 }
 
+function createUploadFileEntry(file: File): UploadFileEntry {
+  return {
+    id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
+    file,
+  }
+}
+
+function createSupplierGroup(): SupplierUploadGroup {
+  return {
+    id: crypto.randomUUID(),
+    supplierId: "",
+    files: [],
+  }
+}
+
 export function ProductImportForm() {
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [entries, setEntries] = useState<UploadEntry[]>([])
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [groups, setGroups] = useState<SupplierUploadGroup[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierListItem[]>([])
+  const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isDragActive, setIsDragActive] = useState(false)
+  const [isSupplierSheetOpen, setIsSupplierSheetOpen] = useState(false)
+  const [targetGroupId, setTargetGroupId] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadSuppliers() {
+      setIsLoadingSuppliers(true)
+
+      try {
+        const response = await fetch("/api/suppliers?page=1&pageSize=50")
+        const payload = (await response.json()) as SupplierListResult & {
+          error?: string
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            payload.error || "No se pudo cargar el listado de proveedores.",
+          )
+        }
+
+        setSuppliers(payload.items)
+      } catch (error) {
+        setNotice({
+          tone: "error",
+          title: "No se pudo cargar proveedores",
+          message:
+            error instanceof Error
+              ? error.message
+              : "No se pudo cargar el listado de proveedores disponibles.",
+        })
+      } finally {
+        setIsLoadingSuppliers(false)
+      }
+    }
+
+    void loadSuppliers()
+  }, [])
+
+  const activeSuppliers = useMemo(
+    () => suppliers.filter((supplier) => supplier.isActive),
+    [suppliers],
+  )
 
   const summary = useMemo(() => {
-    const totalFiles = entries.length
-    const completeFiles = entries.filter((entry) => entry.supplierName.trim().length > 0).length
-    const totalSize = entries.reduce((sum, entry) => sum + entry.file.size, 0)
+    const totalGroups = groups.length
+    const totalFiles = groups.reduce(
+      (total, group) => total + group.files.length,
+      0,
+    )
+    const totalSize = groups.reduce(
+      (total, group) =>
+        total +
+        group.files.reduce(
+          (groupTotal, entry) => groupTotal + entry.file.size,
+          0,
+        ),
+      0,
+    )
+    const readyGroups = groups.filter(
+      (group) => group.supplierId.length > 0 && group.files.length > 0,
+    ).length
+    const incompleteGroups = groups.filter(
+      (group) => group.supplierId.length === 0 || group.files.length === 0,
+    ).length
 
     return {
+      totalGroups,
       totalFiles,
-      completeFiles,
-      missingSupplierCount: totalFiles - completeFiles,
       totalSize,
+      readyGroups,
+      incompleteGroups,
     }
-  }, [entries])
+  }, [groups])
 
-  const supplierGroups = useMemo(() => {
-    const groups = new Map<string, UploadEntry[]>()
+  function addSupplierGroup() {
+    setGroups((current) => [...current, createSupplierGroup()])
+    setNotice(null)
+  }
 
-    for (const entry of entries) {
-      const supplierName = entry.supplierName.trim()
-      if (!supplierName) {
-        continue
-      }
+  function removeSupplierGroup(groupId: string) {
+    setGroups((current) => current.filter((group) => group.id !== groupId))
+  }
 
-      const currentGroup = groups.get(supplierName) ?? []
-      currentGroup.push(entry)
-      groups.set(supplierName, currentGroup)
-    }
+  function updateGroupSupplier(groupId: string, supplierId: string) {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              supplierId,
+            }
+          : group,
+      ),
+    )
+  }
 
-    return Array.from(groups.entries()).map(([supplierName, supplierEntries]) => ({
-      supplierName,
-      count: supplierEntries.length,
-      totalSize: supplierEntries.reduce((total, entry) => total + entry.file.size, 0),
-    }))
-  }, [entries])
+  function removeFile(groupId: string, fileId: string) {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              files: group.files.filter((entry) => entry.id !== fileId),
+            }
+          : group,
+      ),
+    )
+  }
 
-  function appendFiles(fileList: FileList | File[]) {
+  function appendFilesToGroup(groupId: string, fileList: FileList | File[]) {
     const files = Array.from(fileList)
     const invalidFile = files.find((file) => !isSupportedFile(file))
 
@@ -101,109 +214,67 @@ export function ProductImportForm() {
     }
 
     setNotice(null)
-    setEntries((current) => [
-      ...current,
-      ...files.map((file) => ({
-        id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
-        file,
-        supplierName: "",
-      })),
-    ])
-  }
-
-  function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
-    if (!event.target.files?.length) {
-      return
-    }
-
-    appendFiles(event.target.files)
-    event.target.value = ""
-  }
-
-  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault()
-    setIsDragActive(false)
-
-    if (event.dataTransfer.files?.length) {
-      appendFiles(event.dataTransfer.files)
-    }
-  }
-
-  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault()
-    setIsDragActive(true)
-  }
-
-  function handleDragLeave() {
-    setIsDragActive(false)
-  }
-
-  function updateSupplierName(entryId: string, supplierName: string) {
-    setEntries((current) =>
-      current.map((entry) =>
-        entry.id === entryId
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
           ? {
-              ...entry,
-              supplierName,
+              ...group,
+              files: [...group.files, ...files.map(createUploadFileEntry)],
             }
-          : entry,
+          : group,
       ),
     )
   }
 
-  function applySupplierToRemaining(entryId: string) {
-    const sourceEntry = entries.find((entry) => entry.id === entryId)
-    const supplierName = sourceEntry?.supplierName.trim()
-
-    if (!supplierName) {
-      return
-    }
-
-    setEntries((current) =>
-      current.map((entry) =>
-        entry.id !== entryId && entry.supplierName.trim().length === 0
-          ? {
-              ...entry,
-              supplierName,
-            }
-          : entry,
-      ),
-    )
+  function openCreateSupplier(groupId: string) {
+    setTargetGroupId(groupId)
+    setIsSupplierSheetOpen(true)
   }
 
-  function removeEntry(entryId: string) {
-    setEntries((current) => current.filter((entry) => entry.id !== entryId))
-  }
-
-  function clearEntries() {
-    setEntries([])
-    setNotice(null)
+  function createGroupAndOpenSupplierSheet() {
+    const group = createSupplierGroup()
+    setGroups((current) => [...current, group])
+    openCreateSupplier(group.id)
   }
 
   async function handleSubmit() {
-    if (!entries.length) {
+    if (!groups.length) {
       setNotice({
         tone: "error",
         title: "Carga incompleta",
-        message: "Agrega al menos un archivo para iniciar la carga masiva.",
+        message:
+          "Agrega al menos un proveedor antes de iniciar la carga masiva.",
       })
       return
     }
 
-    const invalidEntry = entries.find((entry) => entry.supplierName.trim().length === 0)
-    if (invalidEntry) {
+    const invalidGroup = groups.find(
+      (group) => group.supplierId.length === 0 || group.files.length === 0,
+    )
+
+    if (invalidGroup) {
       setNotice({
         tone: "error",
-        title: "Proveedor faltante",
-        message: `Completa el proveedor asociado al archivo ${invalidEntry.file.name}.`,
+        title: "Grupo incompleto",
+        message:
+          invalidGroup.supplierId.length === 0
+            ? "Selecciona un proveedor para cada grupo antes de continuar."
+            : "Cada proveedor debe tener al menos un archivo cargado.",
       })
       return
     }
 
     const formData = new FormData()
-    entries.forEach((entry) => {
-      formData.append("files", entry.file)
-      formData.append("supplierNames", entry.supplierName.trim())
+    groups.forEach((group) => {
+      const supplier = suppliers.find((entry) => entry.id === group.supplierId)
+      if (!supplier) {
+        return
+      }
+
+      group.files.forEach((entry) => {
+        formData.append("files", entry.file)
+        formData.append("supplierNames", supplier.name)
+      })
     })
 
     setIsSubmitting(true)
@@ -233,7 +304,7 @@ export function ProductImportForm() {
           "Los archivos fueron enviados correctamente para su procesamiento con inteligencia artificial.",
         traceId: payload.traceId,
       })
-      setEntries([])
+      setGroups([])
     } catch (error) {
       setNotice({
         tone: "error",
@@ -248,222 +319,483 @@ export function ProductImportForm() {
     }
   }
 
+  function clearAll() {
+    setGroups([])
+    setNotice(null)
+  }
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="space-y-6">
-        <Card className="border-primary/10 bg-background/85 shadow-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Sparkles className="size-5 text-primary" />
-              Carga masiva de productos
-            </CardTitle>
-            <CardDescription>
-              Sube una o varias listas de precios, indica el proveedor correspondiente y deja que el sistema las procese automáticamente con inteligencia artificial.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div
-              role="button"
-              tabIndex={0}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={() => fileInputRef.current?.click()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  fileInputRef.current?.click()
-                }
-              }}
-              className={[
-                "group cursor-pointer rounded-2xl border border-dashed p-8 text-center transition-all duration-300",
-                isDragActive
-                  ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                  : "border-border/70 bg-muted/20 hover:border-primary/40 hover:bg-primary/5",
-              ].join(" ")}
-            >
-              <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-                <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
-                  <UploadCloud className="size-7" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-base font-medium">Arrastra archivos aquí o haz clic para seleccionarlos</p>
-                  <p className="text-sm text-muted-foreground">
-                    Formatos soportados: {ACCEPTED_EXTENSIONS.join(", ").toUpperCase()}
-                  </p>
-                </div>
+    <>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-6">
+          <Card className="overflow-hidden border-primary/10 bg-background/88 shadow-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+            <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2 text-2xl">
+                  Carga masiva de productos
+                </CardTitle>
+                <CardDescription>
+                  Organiza la carga por proveedor: selecciona un proveedor
+                  existente, agrupa allí todos sus archivos y deja que el
+                  sistema los procese automáticamente con inteligencia
+                  artificial.
+                </CardDescription>
               </div>
+              {groups.length !== 0 && (
+                <Button
+                  type="button"
+                  onClick={addSupplierGroup}
+                  className="shadow-sm"
+                >
+                  <FolderPlus className="size-4" />
+                  Agregar archivos para otro proveedor
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-6 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.02))]">
+              {notice ? (
+                <Alert
+                  variant={notice.tone === "error" ? "destructive" : "success"}
+                  className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
+                >
+                  <AlertDescription>
+                    <span className="font-medium">{notice.title}.</span>{" "}
+                    {notice.message}
+                    {notice.traceId ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        ID de seguimiento: {notice.traceId}
+                      </span>
+                    ) : null}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPTED_EXTENSIONS.join(",")}
-                multiple
-                className="hidden"
-                onChange={handleFileInputChange}
-              />
-            </div>
-
-            {notice ? (
-              <Alert
-                variant={notice.tone === "error" ? "destructive" : "success"}
-                className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-              >
-                <AlertDescription>
-                  <span className="font-medium">{notice.title}.</span> {notice.message}
-                  {notice.traceId ? (
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      ID de seguimiento: {notice.traceId}
-                    </span>
-                  ) : null}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            <div className="space-y-4">
-              {entries.length === 0 ? (
-                <div className="rounded-xl border border-border/70 bg-muted/20 p-6 text-sm text-muted-foreground">
-                  Todavía no agregaste archivos. Cuando subas una lista, aquí podrás asignarle el proveedor antes de iniciar la carga.
+              {isLoadingSuppliers ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-36 w-full rounded-3xl" />
+                  <Skeleton className="h-36 w-full rounded-3xl" />
+                </div>
+              ) : groups.length === 0 ? (
+                <div className="relative overflow-hidden rounded-3xl border border-dashed border-primary/20 bg-[linear-gradient(145deg,color-mix(in_oklab,var(--color-primary)_8%,transparent),transparent_60%),linear-gradient(180deg,color-mix(in_oklab,var(--color-muted)_40%,transparent),transparent)] px-6 py-14 text-center shadow-sm">
+                  <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+                  <div className="mx-auto flex max-w-lg flex-col items-center gap-4">
+                    <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/10">
+                      <UploadCloud className="size-7" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-lg font-semibold text-foreground">
+                        Comienza agregando un proveedor
+                      </p>
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        Cada proveedor tendrá su propio bloque de archivos. Así
+                        podrás cargar varias listas para un mismo proveedor sin
+                        mezclar el flujo.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                      <Badge
+                        variant="outline"
+                        className="border-primary/20 bg-background/70 text-primary"
+                      >
+                        XLSX / XLS / CSV
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="border-border/60 bg-background/70"
+                      >
+                        Procesamiento asistido
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-3 pt-2">
+                      <Button
+                        type="button"
+                        onClick={addSupplierGroup}
+                        className="shadow-sm"
+                      >
+                        <Plus className="size-4" />
+                        Agregar listas para un proveedor existente
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={createGroupAndOpenSupplierSheet}
+                      >
+                        Crear proveedor nuevo
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                entries.map((entry, index) => {
-                  const isReady = entry.supplierName.trim().length > 0
+                <div className="space-y-4">
+                  {groups.map((group, index) => {
+                    const selectedSupplier = suppliers.find(
+                      (supplier) => supplier.id === group.supplierId,
+                    )
+                    const usedSupplierIds = groups
+                      .filter((candidate) => candidate.id !== group.id)
+                      .map((candidate) => candidate.supplierId)
+                      .filter((value) => value.length > 0)
 
-                  const sameSupplierCount = entries.filter(
-                    (candidate) => candidate.supplierName.trim() === entry.supplierName.trim() && entry.supplierName.trim().length > 0,
-                  ).length
-
-                  return (
-                    <Card
-                      key={entry.id}
-                      className="border-border/70 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md animate-in fade-in-0 slide-in-from-bottom-2"
-                    >
-                      <CardContent className="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-center">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <FileSpreadsheet className="size-4 text-primary" />
-                            <p className="font-medium text-foreground">{entry.file.name}</p>
+                    return (
+                      <Card
+                        key={group.id}
+                        className="overflow-hidden border-border/70 shadow-xs animate-in fade-in-0 slide-in-from-bottom-2"
+                      >
+                        <CardHeader className="relative gap-4 border-b bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_60%),linear-gradient(180deg,transparent,rgba(255,255,255,0.02))] lg:flex-row lg:items-start lg:justify-between">
+                          <div className="absolute left-0 top-0 h-full w-1 rounded-r-full bg-primary/60" />
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="border-primary/20 bg-background/80 text-primary"
+                              >
+                                Grupo {index + 1}
+                              </Badge>
+                              {selectedSupplier ? (
+                                <Badge variant="secondary">
+                                  {selectedSupplier.name}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">
+                                  Proveedor pendiente
+                                </Badge>
+                              )}
+                            </div>
+                            <CardTitle className="text-lg">
+                              Proveedor {index + 1}
+                            </CardTitle>
+                            <CardDescription>
+                              Selecciona un proveedor y agrega aquí todas las
+                              listas que correspondan a ese mismo proveedor.
+                            </CardDescription>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">Archivo {index + 1}</Badge>
-                            <Badge variant="outline">{formatBytes(entry.file.size)}</Badge>
-                            <Badge variant={isReady ? "secondary" : "outline"}>
-                              {isReady ? "Listo para enviar" : "Falta proveedor"}
-                            </Badge>
-                            {sameSupplierCount > 1 ? (
-                              <Badge variant="secondary">Proveedor repetido en {sameSupplierCount} archivos</Badge>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label htmlFor={`supplier-${entry.id}`}>Proveedor asociado</Label>
-                            <button
-                              type="button"
-                              className="text-xs text-primary underline-offset-4 hover:underline"
-                              onClick={() => applySupplierToRemaining(entry.id)}
-                            >
-                              Aplicar a archivos vacíos
-                            </button>
-                          </div>
-                          <Input
-                            id={`supplier-${entry.id}`}
-                            value={entry.supplierName}
-                            onChange={(event) => updateSupplierName(entry.id, event.target.value)}
-                            placeholder="Ej. Ferretería Pepe"
-                          />
-                        </div>
-
-                        <div className="flex justify-end md:justify-center">
                           <Button
                             type="button"
                             variant="ghost"
-                            size="icon"
-                            onClick={() => removeEntry(entry.id)}
-                            className="text-muted-foreground transition-colors hover:text-destructive"
+                            size="sm"
+                            onClick={() => removeSupplierGroup(group.id)}
+                            className="self-start text-muted-foreground hover:text-destructive"
                           >
                             <Trash2 className="size-4" />
+                            Quitar bloque
                           </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })
+                        </CardHeader>
+                        <CardContent className="space-y-5 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.015))] pt-6">
+                          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-foreground">
+                                Proveedor
+                              </p>
+                              <Select
+                                value={group.supplierId}
+                                onValueChange={(value) =>
+                                  updateGroupSupplier(group.id, value)
+                                }
+                              >
+                                <SelectTrigger className="w-full bg-background shadow-xs">
+                                  <SelectValue placeholder="Selecciona un proveedor existente" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activeSuppliers.map((supplier) => (
+                                    <SelectItem
+                                      key={supplier.id}
+                                      value={supplier.id}
+                                      disabled={
+                                        usedSupplierIds.includes(supplier.id) &&
+                                        supplier.id !== group.supplierId
+                                      }
+                                    >
+                                      {supplier.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => openCreateSupplier(group.id)}
+                            >
+                              Crear proveedor nuevo
+                            </Button>
+                          </div>
+
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() =>
+                              fileInputRefs.current[group.id]?.click()
+                            }
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={(event) => {
+                              event.preventDefault()
+                              if (event.dataTransfer.files?.length) {
+                                appendFilesToGroup(
+                                  group.id,
+                                  event.dataTransfer.files,
+                                )
+                              }
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault()
+                                fileInputRefs.current[group.id]?.click()
+                              }
+                            }}
+                            className="group cursor-pointer rounded-3xl border border-dashed border-border/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_60%)] px-6 py-9 text-center transition-all duration-300 hover:border-primary/40 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5"
+                          >
+                            <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                              <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10 transition-transform duration-300 group-hover:scale-105">
+                                <UploadCloud className="size-6" />
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-base font-medium text-foreground">
+                                  Agregar archivos para{" "}
+                                  {selectedSupplier?.name ?? "este proveedor"}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Puedes subir una o varias listas. Formatos
+                                  soportados:{" "}
+                                  {ACCEPTED_EXTENSIONS.join(", ").toUpperCase()}
+                                </p>
+                              </div>
+                            </div>
+
+                            <input
+                              ref={(node) => {
+                                fileInputRefs.current[group.id] = node
+                              }}
+                              type="file"
+                              accept={ACCEPTED_EXTENSIONS.join(",")}
+                              multiple
+                              className="hidden"
+                              onChange={(event) => {
+                                if (!event.target.files?.length) {
+                                  return
+                                }
+
+                                appendFilesToGroup(group.id, event.target.files)
+                                event.target.value = ""
+                              }}
+                            />
+                          </div>
+
+                          {group.files.length > 0 ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                <span>
+                                  {group.files.length} archivo(s) cargado(s)
+                                </span>
+                                <span>
+                                  {formatBytes(
+                                    group.files.reduce(
+                                      (total, entry) => total + entry.file.size,
+                                      0,
+                                    ),
+                                  )}
+                                </span>
+                              </div>
+
+                              <div className="space-y-2">
+                                {group.files.map((entry) => (
+                                  <div
+                                    key={entry.id}
+                                    className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/90 px-4 py-3 shadow-xs transition-all duration-200 hover:border-primary/20 hover:shadow-sm"
+                                  >
+                                    <div className="min-w-0 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <FileSpreadsheet className="size-4 text-primary" />
+                                        <p className="truncate font-medium text-foreground">
+                                          {entry.file.name}
+                                        </p>
+                                      </div>
+                                      <p className="text-sm text-muted-foreground">
+                                        {formatBytes(entry.file.size)}
+                                      </p>
+                                    </div>
+
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        removeFile(group.id, entry.id)
+                                      }
+                                      className="text-muted-foreground hover:text-destructive"
+                                    >
+                                      <Trash2 className="size-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-6 text-center text-sm text-muted-foreground">
+                              Este proveedor todavía no tiene archivos
+                              asociados.
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-        <Card className="border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm animate-in fade-in-0 slide-in-from-right-2 duration-500">
-          <CardHeader>
-            <CardTitle>Resumen de la carga</CardTitle>
-            <CardDescription>Revisa el estado antes de enviar los archivos.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-              <span className="text-muted-foreground">Archivos</span>
-              <span className="font-medium">{summary.totalFiles}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-              <span className="text-muted-foreground">Con proveedor</span>
-              <span className="font-medium">{summary.completeFiles}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-              <span className="text-muted-foreground">Pendientes</span>
-              <span className="font-medium">{summary.missingSupplierCount}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-              <span className="text-muted-foreground">Peso estimado</span>
-              <span className="font-medium">{formatBytes(summary.totalSize)}</span>
-            </div>
-
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-muted-foreground">
-              El proceso corre en segundo plano. Puedes cargar varios archivos para un mismo proveedor: el sistema los agrupará antes de procesarlos.
-            </div>
-
-            {supplierGroups.length > 0 ? (
-              <div className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-4">
-                <p className="text-sm font-medium text-foreground">Agrupación por proveedor</p>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  {supplierGroups.map((group) => (
-                    <div key={group.supplierName} className="flex items-center justify-between gap-3 rounded-lg bg-background/80 px-3 py-2">
-                      <div>
-                        <p className="font-medium text-foreground">{group.supplierName}</p>
-                        <p>{group.count} archivo(s)</p>
-                      </div>
-                      <Badge variant="outline">{formatBytes(group.totalSize)}</Badge>
-                    </div>
-                  ))}
+        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <Card className="overflow-hidden border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm animate-in fade-in-0 slide-in-from-right-2 duration-500">
+            <CardHeader>
+              <CardTitle>Resumen de la carga</CardTitle>
+              <CardDescription>
+                Revisa el estado general antes de enviar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 shadow-xs">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Proveedores
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">
+                    {summary.totalGroups}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 shadow-xs">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Archivos
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">
+                    {summary.totalFiles}
+                  </p>
                 </div>
               </div>
-            ) : null}
+              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">Proveedores</span>
+                <span className="font-medium">{summary.totalGroups}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">Archivos</span>
+                <span className="font-medium">{summary.totalFiles}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">Bloques listos</span>
+                <span className="font-medium">{summary.readyGroups}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">
+                  Bloques incompletos
+                </span>
+                <span className="font-medium">{summary.incompleteGroups}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span className="text-muted-foreground">Peso estimado</span>
+                <span className="font-medium">
+                  {formatBytes(summary.totalSize)}
+                </span>
+              </div>
 
-            <div className="space-y-3">
-              <Button
-                type="button"
-                className="w-full"
-                onClick={handleSubmit}
-                disabled={isSubmitting || entries.length === 0}
-              >
-                {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                {isSubmitting ? "Iniciando carga..." : "Iniciar carga masiva"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={clearEntries}
-                disabled={isSubmitting || entries.length === 0}
-              >
-                Limpiar archivos
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </aside>
-    </div>
+              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 text-muted-foreground shadow-xs">
+                Selecciona proveedores existentes o crea uno nuevo en el
+                momento. Después podrás subir varias listas dentro del mismo
+                bloque del proveedor para mantener la carga ordenada y clara.
+              </div>
+
+              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4 shadow-xs">
+                <p className="text-sm font-medium text-foreground">
+                  Formato de trabajo recomendado
+                </p>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex gap-3">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                      1
+                    </span>
+                    <span>Agrega un proveedor al flujo.</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                      2
+                    </span>
+                    <span>
+                      Sube todas las listas que correspondan a ese proveedor.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                      3
+                    </span>
+                    <span>Repite el proceso con los demás proveedores.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || groups.length === 0}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <ArrowRightCircle className="size-4" />
+                  )}
+                  {isSubmitting ? "Iniciando carga..." : "Iniciar carga masiva"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={clearAll}
+                  disabled={isSubmitting || groups.length === 0}
+                >
+                  Limpiar todo
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
+
+      <SupplierFormSheet
+        open={isSupplierSheetOpen}
+        supplier={null}
+        onOpenChange={(open) => {
+          setIsSupplierSheetOpen(open)
+          if (!open) {
+            setTargetGroupId(null)
+          }
+        }}
+        onSaved={async (supplier) => {
+          setSuppliers((current) => {
+            const next = [...current, supplier]
+            return next.sort((a, b) => a.name.localeCompare(b.name, "es"))
+          })
+
+          if (targetGroupId) {
+            setGroups((current) =>
+              current.map((group) =>
+                group.id === targetGroupId
+                  ? {
+                      ...group,
+                      supplierId: supplier.id,
+                    }
+                  : group,
+              ),
+            )
+          }
+
+          setNotice({
+            tone: "success",
+            title: "Proveedor creado",
+            message: `Proveedor ${supplier.name} creado correctamente y listo para asociar archivos.`,
+          })
+        }}
+      />
+    </>
   )
 }
