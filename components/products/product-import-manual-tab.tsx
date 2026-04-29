@@ -1,0 +1,805 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { Loader2, Plus } from "lucide-react"
+
+import { ManualProductUpdateDialog } from "@/components/products/manual-product-update-dialog"
+import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
+import { useSuppliers } from "@/lib/hooks/use-suppliers"
+import type {
+  CreateManualSupplierPriceListInput,
+  ManualExistingProductConflict,
+  ManualProductInput,
+  ManualProductResult,
+  ManualSupplierPriceListItem,
+} from "@/lib/products/manual-product-types"
+import type { SupplierListItem } from "@/lib/suppliers/types"
+
+type Notice = {
+  tone: "success" | "error"
+  title: string
+  message: string
+}
+
+type PriceListMode = "existing" | "new"
+
+type ManualProductDraft = {
+  supplierProductCode: string
+  name: string
+  description: string
+  brand: string
+  categoryCode: string
+  categoryName: string
+  barcode: string
+  costPrice: string
+  salePrice: string
+  initialStock: string
+  minStock: string
+  listPrice: string
+  offerPrice: string
+  vatRate: string
+  isActive: boolean
+  isForSale: boolean
+}
+
+const EMPTY_PRICE_LISTS: ManualSupplierPriceListItem[] = []
+
+function createEmptyDraft(): ManualProductDraft {
+  return {
+    supplierProductCode: "",
+    name: "",
+    description: "",
+    brand: "",
+    categoryCode: "",
+    categoryName: "",
+    barcode: "",
+    costPrice: "0",
+    salePrice: "0",
+    initialStock: "0",
+    minStock: "0",
+    listPrice: "",
+    offerPrice: "",
+    vatRate: "",
+    isActive: true,
+    isForSale: true,
+  }
+}
+
+function parseOptionalNumber(value: string) {
+  const normalized = value.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+
+  return Number(normalized)
+}
+
+function CheckboxField({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  label: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4 rounded border-border text-primary focus-visible:ring-2 focus-visible:ring-ring/40"
+      />
+      {label}
+    </label>
+  )
+}
+
+function buildManualProductPayload(
+  priceListId: string,
+  product: ManualProductDraft,
+  confirmUpdates: boolean,
+): ManualProductInput {
+  return {
+    priceListId,
+    confirmUpdates,
+    product: {
+      supplierProductCode: product.supplierProductCode.trim(),
+      name: product.name.trim(),
+      description: product.description.trim() || null,
+      brand: product.brand.trim() || null,
+      categoryCode: product.categoryCode.trim() || null,
+      categoryName: product.categoryName.trim() || null,
+      barcode: product.barcode.trim() || null,
+      costPrice: Number(product.costPrice),
+      salePrice: Number(product.salePrice),
+      initialStock: Number(product.initialStock),
+      minStock: Number(product.minStock),
+      listPrice: parseOptionalNumber(product.listPrice),
+      offerPrice: parseOptionalNumber(product.offerPrice),
+      vatRate: parseOptionalNumber(product.vatRate),
+      isActive: product.isActive,
+      isForSale: product.isForSale,
+    },
+  }
+}
+
+export function ProductImportManualTab() {
+  const { suppliers, setSuppliers, isLoading, error, refetch } = useSuppliers({
+    pageSize: 100,
+  })
+  const [selectedSupplierId, setSelectedSupplierId] = useState("")
+  const [priceListMode, setPriceListMode] = useState<PriceListMode>("existing")
+  const [priceLists, setPriceLists] = useState<ManualSupplierPriceListItem[]>(EMPTY_PRICE_LISTS)
+  const [isLoadingPriceLists, setIsLoadingPriceLists] = useState(false)
+  const [selectedPriceListId, setSelectedPriceListId] = useState("")
+  const [newPriceListName, setNewPriceListName] = useState("")
+  const [product, setProduct] = useState<ManualProductDraft>(createEmptyDraft())
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSupplierSheetOpen, setIsSupplierSheetOpen] = useState(false)
+  const [conflict, setConflict] = useState<ManualExistingProductConflict | null>(null)
+  const [isConflictOpen, setIsConflictOpen] = useState(false)
+  const [pendingPriceListId, setPendingPriceListId] = useState<string | null>(null)
+
+  const availablePriceLists = useMemo(
+    () =>
+      priceLists.filter(
+        (priceList) =>
+          priceList.sourceType === "MANUAL" && priceList.status === "DRAFT",
+      ),
+    [priceLists],
+  )
+
+  useEffect(() => {
+    async function loadPriceLists() {
+      if (!selectedSupplierId) {
+        setPriceLists(EMPTY_PRICE_LISTS)
+        setSelectedPriceListId("")
+        return
+      }
+
+      setIsLoadingPriceLists(true)
+
+      try {
+        const response = await fetch(
+          `/api/suppliers/${selectedSupplierId}/price-lists`,
+        )
+        const payload = (await response.json()) as {
+          items?: ManualSupplierPriceListItem[]
+          error?: string
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            payload.error || "No se pudieron cargar las listas de precios.",
+          )
+        }
+
+        setPriceLists(payload.items ?? EMPTY_PRICE_LISTS)
+      } catch (loadError) {
+        setNotice({
+          tone: "error",
+          title: "No se pudieron cargar las listas",
+          message:
+            loadError instanceof Error
+              ? loadError.message
+              : "No se pudieron cargar las listas del proveedor seleccionado.",
+        })
+        setPriceLists(EMPTY_PRICE_LISTS)
+      } finally {
+        setIsLoadingPriceLists(false)
+      }
+    }
+
+    void loadPriceLists()
+  }, [selectedSupplierId])
+
+  useEffect(() => {
+    if (priceListMode === "new") {
+      setSelectedPriceListId("")
+    }
+  }, [priceListMode])
+
+  function updateProductField<K extends keyof ManualProductDraft>(
+    field: K,
+    value: ManualProductDraft[K],
+  ) {
+    setProduct((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  async function ensureManualPriceList() {
+    if (priceListMode === "existing") {
+      if (!selectedPriceListId) {
+        throw new Error("Selecciona una lista de precios existente.")
+      }
+
+      return selectedPriceListId
+    }
+
+    if (!selectedSupplierId) {
+      throw new Error("Selecciona un proveedor antes de crear la lista manual.")
+    }
+
+    if (!newPriceListName.trim()) {
+      throw new Error("El nombre de la nueva lista es obligatorio.")
+    }
+
+    const payload: CreateManualSupplierPriceListInput = {
+      name: newPriceListName.trim(),
+    }
+
+    const response = await fetch(
+      `/api/suppliers/${selectedSupplierId}/price-lists`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    )
+
+    const body = (await response.json()) as {
+      error?: string
+      priceList?: ManualSupplierPriceListItem
+    }
+
+    if (!response.ok || !body.priceList) {
+      throw new Error(
+        body.error || "No se pudo crear la lista de precios manual.",
+      )
+    }
+
+    setPriceLists((current) => [body.priceList!, ...current])
+    setSelectedPriceListId(body.priceList.id)
+    setPriceListMode("existing")
+    setNewPriceListName("")
+
+    return body.priceList.id
+  }
+
+  async function submitProduct(confirmUpdates: boolean, fixedPriceListId?: string) {
+    if (!selectedSupplierId) {
+      throw new Error("Selecciona un proveedor para la carga manual.")
+    }
+
+    const priceListId = fixedPriceListId ?? (await ensureManualPriceList())
+    setPendingPriceListId(priceListId)
+
+    const response = await fetch("/api/products/manual", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        buildManualProductPayload(priceListId, product, confirmUpdates),
+      ),
+    })
+
+    const payload = (await response.json()) as {
+      error?: string
+      result?: ManualProductResult
+      code?: string
+      conflicts?: ManualExistingProductConflict[]
+    }
+
+    if (
+      response.status === 409 &&
+      payload.code === "MANUAL_PRODUCT_CONFLICT" &&
+      payload.conflicts?.[0]
+    ) {
+      setConflict(payload.conflicts[0])
+      setIsConflictOpen(true)
+      return null
+    }
+
+    if (!response.ok || !payload.result) {
+      throw new Error(
+        payload.error || "No se pudo guardar el producto manualmente.",
+      )
+    }
+
+    return payload.result
+  }
+
+  async function handleSubmit() {
+    setNotice(null)
+    setIsSubmitting(true)
+
+    try {
+      const result = await submitProduct(false)
+      if (!result) {
+        return
+      }
+
+      setNotice({
+        tone: "success",
+        title: "Producto guardado",
+        message: result.updatedExistingProduct
+          ? "El producto se actualizó correctamente."
+          : "El producto se creó correctamente.",
+      })
+      setProduct(createEmptyDraft())
+      setPendingPriceListId(null)
+    } catch (submitError) {
+      setNotice({
+        tone: "error",
+        title: "No se pudo guardar el producto",
+        message:
+          submitError instanceof Error
+            ? submitError.message
+            : "Ocurrió un error inesperado al guardar el producto.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleConfirmConflictUpdate() {
+    if (!pendingPriceListId) {
+      setIsConflictOpen(false)
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const result = await submitProduct(true, pendingPriceListId)
+      if (!result) {
+        return
+      }
+
+      setIsConflictOpen(false)
+      setConflict(null)
+      setNotice({
+        tone: "success",
+        title: "Producto actualizado",
+        message:
+          "Se actualizó el producto existente y se sumó el stock indicado.",
+      })
+      setProduct(createEmptyDraft())
+      setPendingPriceListId(null)
+    } catch (confirmError) {
+      setNotice({
+        tone: "error",
+        title: "No se pudo confirmar la actualización",
+        message:
+          confirmError instanceof Error
+            ? confirmError.message
+            : "Ocurrió un error inesperado al actualizar el producto.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="mx-auto w-full max-w-5xl">
+        <Card className="relative overflow-hidden border-primary/10 bg-background/88 shadow-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+          <CardHeader className="relative border-b border-border/50 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_8%,transparent),transparent_60%),linear-gradient(180deg,transparent,rgba(255,255,255,0.02))] pb-7">
+            <CardTitle className="text-2xl tracking-tight md:text-3xl">
+              Carga manual de producto
+            </CardTitle>
+            <CardDescription className="max-w-2xl text-base leading-relaxed">
+              Carga un producto a la vez, asignándolo a un proveedor y a una lista de precios existente o recién creada.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.02))] p-6 md:p-8">
+            {(notice || error) && (
+              <Alert
+                variant={notice?.tone === "error" || error ? "destructive" : "success"}
+                className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
+              >
+                <AlertDescription>
+                  {notice ? (
+                    <>
+                      <span className="font-medium">{notice.title}.</span>{" "}
+                      {notice.message}
+                    </>
+                  ) : (
+                    error
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Card className="overflow-hidden border-border/70 shadow-xs">
+              <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(255,255,255,0.03),transparent_65%)] pb-5">
+                <CardTitle className="text-lg">Contexto</CardTitle>
+                <CardDescription>
+                  Selecciona el proveedor y la lista de precios antes de completar el producto.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
+                <div className="space-y-2 xl:col-span-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="manual-supplier">Proveedor</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsSupplierSheetOpen(true)}
+                      className="text-primary"
+                    >
+                      <Plus className="size-4" />
+                      Crear proveedor
+                    </Button>
+                  </div>
+
+                  {isLoading ? (
+                    <Skeleton className="h-10 w-full rounded-xl" />
+                  ) : (
+                    <Select
+                      value={selectedSupplierId}
+                      onValueChange={setSelectedSupplierId}
+                    >
+                      <SelectTrigger
+                        id="manual-supplier"
+                        className="w-full bg-background shadow-xs"
+                      >
+                        <SelectValue placeholder="Selecciona un proveedor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers
+                          .filter((supplier) => supplier.isActive)
+                          .map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="manual-price-list-mode">Lista de precios</Label>
+                  <Select
+                    value={priceListMode}
+                    onValueChange={(value) => setPriceListMode(value as PriceListMode)}
+                  >
+                    <SelectTrigger
+                      id="manual-price-list-mode"
+                      className="w-full bg-background shadow-xs"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="existing">Usar lista existente</SelectItem>
+                      <SelectItem value="new">Crear lista manual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {priceListMode === "existing" ? (
+                  <div className="space-y-2 xl:col-span-1">
+                    <Label htmlFor="manual-price-list-existing">Lista disponible</Label>
+                    {isLoadingPriceLists ? (
+                      <Skeleton className="h-10 w-full rounded-xl" />
+                    ) : (
+                      <Select
+                        value={selectedPriceListId}
+                        onValueChange={setSelectedPriceListId}
+                      >
+                        <SelectTrigger
+                          id="manual-price-list-existing"
+                          className="w-full bg-background shadow-xs"
+                        >
+                          <SelectValue placeholder="Selecciona una lista" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePriceLists.map((priceList) => (
+                            <SelectItem key={priceList.id} value={priceList.id}>
+                              {priceList.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 xl:col-span-1">
+                    <Label htmlFor="manual-price-list-name">
+                      Nombre de la nueva lista
+                    </Label>
+                    <Input
+                      id="manual-price-list-name"
+                      value={newPriceListName}
+                      onChange={(event) => setNewPriceListName(event.target.value)}
+                      placeholder="Ej. Lista manual abril"
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden border-border/70 shadow-xs">
+              <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(255,255,255,0.03),transparent_65%)] pb-5">
+                <CardTitle className="text-lg">Producto</CardTitle>
+                <CardDescription>
+                  Completa los datos del producto tal como debe quedar guardado dentro de la lista seleccionada.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="product-code">Código del proveedor</Label>
+                  <Input
+                    id="product-code"
+                    value={product.supplierProductCode}
+                    onChange={(event) =>
+                      updateProductField(
+                        "supplierProductCode",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Ej. A-100"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2 xl:col-span-3">
+                  <Label htmlFor="product-name">Nombre</Label>
+                  <Input
+                    id="product-name"
+                    value={product.name}
+                    onChange={(event) =>
+                      updateProductField("name", event.target.value)
+                    }
+                    placeholder="Nombre del producto"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2 xl:col-span-4">
+                  <Label htmlFor="product-description">Descripción</Label>
+                  <Textarea
+                    id="product-description"
+                    value={product.description}
+                    onChange={(event) =>
+                      updateProductField("description", event.target.value)
+                    }
+                    placeholder="Descripción técnica o comercial"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-brand">Marca</Label>
+                  <Input
+                    id="product-brand"
+                    value={product.brand}
+                    onChange={(event) =>
+                      updateProductField("brand", event.target.value)
+                    }
+                    placeholder="Marca"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-category-code">Código categoría</Label>
+                  <Input
+                    id="product-category-code"
+                    value={product.categoryCode}
+                    onChange={(event) =>
+                      updateProductField("categoryCode", event.target.value)
+                    }
+                    placeholder="Ej. CEO-272"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="product-category-name">Categoría</Label>
+                  <Input
+                    id="product-category-name"
+                    value={product.categoryName}
+                    onChange={(event) =>
+                      updateProductField("categoryName", event.target.value)
+                    }
+                    placeholder="Nombre de la categoría"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2 xl:col-span-2">
+                  <Label htmlFor="product-barcode">Código de barras</Label>
+                  <Input
+                    id="product-barcode"
+                    value={product.barcode}
+                    onChange={(event) =>
+                      updateProductField("barcode", event.target.value)
+                    }
+                    placeholder="EAN / código de barras"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-cost">Precio de costo</Label>
+                  <Input
+                    id="product-cost"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={product.costPrice}
+                    onChange={(event) =>
+                      updateProductField("costPrice", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-sale">Precio de venta</Label>
+                  <Input
+                    id="product-sale"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={product.salePrice}
+                    onChange={(event) =>
+                      updateProductField("salePrice", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-list-price">Precio de lista</Label>
+                  <Input
+                    id="product-list-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={product.listPrice}
+                    onChange={(event) =>
+                      updateProductField("listPrice", event.target.value)
+                    }
+                    placeholder="Opcional"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-offer-price">Precio oferta</Label>
+                  <Input
+                    id="product-offer-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={product.offerPrice}
+                    onChange={(event) =>
+                      updateProductField("offerPrice", event.target.value)
+                    }
+                    placeholder="Opcional"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-stock">Stock inicial</Label>
+                  <Input
+                    id="product-stock"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={product.initialStock}
+                    onChange={(event) =>
+                      updateProductField("initialStock", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-min-stock">Stock mínimo</Label>
+                  <Input
+                    id="product-min-stock"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={product.minStock}
+                    onChange={(event) =>
+                      updateProductField("minStock", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-vat">IVA</Label>
+                  <Input
+                    id="product-vat"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={product.vatRate}
+                    onChange={(event) =>
+                      updateProductField("vatRate", event.target.value)
+                    }
+                    placeholder="Opcional"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-4 md:col-span-2 xl:col-span-4">
+                  <CheckboxField
+                    checked={product.isActive}
+                    label="Producto activo"
+                    onChange={(checked) =>
+                      updateProductField("isActive", checked)
+                    }
+                  />
+                  <CheckboxField
+                    checked={product.isForSale}
+                    label="Disponible para la venta"
+                    onChange={(checked) =>
+                      updateProductField("isForSale", checked)
+                    }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setProduct(createEmptyDraft())}
+                disabled={isSubmitting}
+              >
+                Limpiar formulario
+              </Button>
+              <Button
+                type="button"
+                className="min-w-44 shadow-sm"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+                {isSubmitting ? "Guardando producto..." : "Guardar producto"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <SupplierFormSheet
+        open={isSupplierSheetOpen}
+        supplier={null}
+        onOpenChange={setIsSupplierSheetOpen}
+        onSaved={async (supplier: SupplierListItem) => {
+          setSuppliers((current) => {
+            const next = [...current, supplier]
+            return next.sort((a, b) => a.name.localeCompare(b.name, "es"))
+          })
+          setSelectedSupplierId(supplier.id)
+          setNotice({
+            tone: "success",
+            title: "Proveedor creado",
+            message: `Proveedor ${supplier.name} creado correctamente.`,
+          })
+          await refetch()
+        }}
+      />
+
+      <ManualProductUpdateDialog
+        open={isConflictOpen}
+        conflict={conflict}
+        isSubmitting={isSubmitting}
+        onOpenChange={setIsConflictOpen}
+        onConfirm={() => {
+          void handleConfirmConflictUpdate()
+        }}
+      />
+    </>
+  )
+}

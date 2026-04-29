@@ -1,4 +1,4 @@
-import { ProductImportForm } from "@/components/products/product-import-form"
+import { ProductsNewTabs } from "@/components/products/products-new-tabs"
 import {
   Card,
   CardContent,
@@ -94,7 +94,7 @@ export default async function NewProductsPage() {
           </CardContent>
         </Card>
 
-        <ProductImportForm />
+        <ProductsNewTabs />
       </div>
     </main>
   )

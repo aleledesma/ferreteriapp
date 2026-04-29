@@ -1,7 +1,7 @@
 import {
   type CreateManualSupplierPriceListInput,
   type ManualBatchProductInput,
-  type ManualProductBatchInput,
+  type ManualProductInput,
 } from "@/lib/products/manual-product-types"
 
 export class ManualProductError extends Error {
@@ -146,7 +146,7 @@ export function parseManualSupplierPriceListInput(
   }
 }
 
-export function parseManualProductBatchInput(payload: unknown): ManualProductBatchInput {
+export function parseManualProductInput(payload: unknown): ManualProductInput {
   if (!payload || typeof payload !== "object") {
     throw new ManualProductError("Payload invalido.")
   }
@@ -158,32 +158,15 @@ export function parseManualProductBatchInput(payload: unknown): ManualProductBat
     throw new ManualProductError("El identificador de la lista de precios es obligatorio.")
   }
 
-  if (!Array.isArray(record.products) || record.products.length === 0) {
-    throw new ManualProductError("Debes enviar al menos un producto para la carga manual.")
+  if (!record.product || typeof record.product !== "object") {
+    throw new ManualProductError("Debes enviar un producto para la carga manual.")
   }
 
-  const products = record.products.map(parseManualBatchProductInput)
-  const repeatedCodes = new Set<string>()
-  const seenCodes = new Set<string>()
-
-  for (const product of products) {
-    if (seenCodes.has(product.supplierProductCode)) {
-      repeatedCodes.add(product.supplierProductCode)
-      continue
-    }
-
-    seenCodes.add(product.supplierProductCode)
-  }
-
-  if (repeatedCodes.size > 0) {
-    throw new ManualProductError(
-      `El lote contiene codigos de proveedor repetidos: ${Array.from(repeatedCodes).join(", ")}.`,
-    )
-  }
+  const product = parseManualBatchProductInput(record.product)
 
   return {
     priceListId,
     confirmUpdates: record.confirmUpdates === true,
-    products,
+    product,
   }
 }

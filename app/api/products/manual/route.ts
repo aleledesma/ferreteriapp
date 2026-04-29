@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 
 import { getAuthorizedApiUser } from "@/lib/auth/api-guards"
-import { createManualProductBatch } from "@/lib/dal/manual-product-import-dal"
+import { createManualProduct } from "@/lib/dal/manual-product-import-dal"
 import {
   ManualProductConflictError,
   ManualProductError,
-  parseManualProductBatchInput,
+  parseManualProductInput,
 } from "@/lib/products/manual-product-validation"
 
 function toErrorResponse(error: unknown) {
@@ -29,7 +29,7 @@ function toErrorResponse(error: unknown) {
       error:
         error instanceof Error
           ? error.message
-          : "No se pudo procesar la carga manual de productos.",
+          : "No se pudo procesar la carga manual del producto.",
     },
     { status: 400 },
   )
@@ -47,8 +47,8 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json()
-    const input = parseManualProductBatchInput(payload)
-    const result = await createManualProductBatch(input, authorization.user.id)
+    const input = parseManualProductInput(payload)
+    const result = await createManualProduct(input, authorization.user.id)
 
     return NextResponse.json({ result }, { status: 201 })
   } catch (error) {
