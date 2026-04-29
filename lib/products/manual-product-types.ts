@@ -42,10 +42,10 @@ export type ManualBatchProductInput = {
   vatRate?: number | null
 }
 
-export type ManualProductBatchInput = {
+export type ManualProductInput = {
   priceListId: string
   confirmUpdates?: boolean
-  products: ManualBatchProductInput[]
+  product: ManualBatchProductInput
 }
 
 export type ManualExistingProductConflict = {
@@ -72,12 +72,10 @@ export type ManualExistingProductConflict = {
   }
 }
 
-export type ManualProductBatchResult = {
+export type ManualProductResult = {
   priceListId: string
   supplierId: string
-  updatedExistingProducts: boolean
-  productsCreated: number
-  productsUpdated: number
-  itemsImported: number
+  updatedExistingProduct: boolean
+  productId: string
   stockMovementsCreated: number
 }

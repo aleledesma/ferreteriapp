@@ -2,8 +2,8 @@ import { prisma } from "@/lib/prisma"
 import type {
   ManualBatchProductInput,
   ManualExistingProductConflict,
-  ManualProductBatchInput,
-  ManualProductBatchResult,
+  ManualProductInput,
+  ManualProductResult,
 } from "@/lib/products/manual-product-types"
 import {
   ManualProductConflictError,
@@ -30,10 +30,10 @@ function toCreateOrUpdateProductData(
   }
 }
 
-export async function createManualProductBatch(
-  input: ManualProductBatchInput,
+export async function createManualProduct(
+  input: ManualProductInput,
   createdByUserId: string,
-): Promise<ManualProductBatchResult> {
+): Promise<ManualProductResult> {
   return prisma.$transaction(async (tx) => {
     const priceList = await tx.supplierPriceList.findUnique({
       where: { id: input.priceListId },
@@ -78,7 +78,7 @@ export async function createManualProductBatch(
       where: {
         supplierId: priceList.supplierId,
         supplierProductCode: {
-          in: input.products.map((product) => product.supplierProductCode),
+          in: [input.product.supplierProductCode],
         },
       },
       select: {
@@ -98,38 +98,34 @@ export async function createManualProductBatch(
       existingProducts.map((product) => [product.supplierProductCode, product]),
     )
 
-    const conflicts: ManualExistingProductConflict[] = input.products
-      .map((product) => {
-        const existingProduct = existingProductMap.get(product.supplierProductCode)
-        if (!existingProduct) {
-          return null
-        }
-
-        return {
-          productId: existingProduct.id,
-          supplierProductCode: existingProduct.supplierProductCode,
-          current: {
-            name: existingProduct.name,
-            costPrice: Number(existingProduct.costPrice),
-            salePrice: Number(existingProduct.salePrice),
-            stock: existingProduct.stock,
-            minStock: existingProduct.minStock,
-            isActive: existingProduct.isActive,
-            isForSale: existingProduct.isForSale,
+    const existingProduct = existingProductMap.get(input.product.supplierProductCode)
+    const conflicts: ManualExistingProductConflict[] = existingProduct
+      ? [
+          {
+            productId: existingProduct.id,
+            supplierProductCode: existingProduct.supplierProductCode,
+            current: {
+              name: existingProduct.name,
+              costPrice: Number(existingProduct.costPrice),
+              salePrice: Number(existingProduct.salePrice),
+              stock: existingProduct.stock,
+              minStock: existingProduct.minStock,
+              isActive: existingProduct.isActive,
+              isForSale: existingProduct.isForSale,
+            },
+            incoming: {
+              name: input.product.name,
+              costPrice: input.product.costPrice,
+              salePrice: input.product.salePrice,
+              stockToAdd: input.product.initialStock,
+              resultingStock: existingProduct.stock + input.product.initialStock,
+              minStock: input.product.minStock ?? 0,
+              isActive: input.product.isActive ?? true,
+              isForSale: input.product.isForSale ?? true,
+            },
           },
-          incoming: {
-            name: product.name,
-            costPrice: product.costPrice,
-            salePrice: product.salePrice,
-            stockToAdd: product.initialStock,
-            resultingStock: existingProduct.stock + product.initialStock,
-            minStock: product.minStock ?? 0,
-            isActive: product.isActive ?? true,
-            isForSale: product.isForSale ?? true,
-          },
-        }
-      })
-      .filter((entry): entry is ManualExistingProductConflict => entry !== null)
+        ]
+      : []
 
     if (conflicts.length > 0 && !input.confirmUpdates) {
       throw new ManualProductConflictError(
@@ -138,126 +134,86 @@ export async function createManualProductBatch(
       )
     }
 
-    let productsCreated = 0
-    let productsUpdated = 0
     let stockMovementsCreated = 0
+    let updatedExistingProduct = false
+    let productId: string
 
-    const priceListItems: Array<{
-      priceListId: string
-      productId: string
-      supplierProductCode: string
-      rawName: string
-      rawDescription: string | null
-      brand: string | null
-      categoryCode: string | null
-      categoryName: string | null
-      barcode: string | null
-      listPrice: number | null
-      offerPrice: number | null
-      vatRate: number | null
-    }> = []
+    if (existingProduct) {
+      const nextStock = existingProduct.stock + input.product.initialStock
 
-    for (const product of input.products) {
-      const existingProduct = existingProductMap.get(product.supplierProductCode)
-
-      if (existingProduct) {
-        const nextStock = existingProduct.stock + product.initialStock
-
-        const updatedProduct = await tx.product.update({
-          where: { id: existingProduct.id },
-          data: {
-            stock: nextStock,
-            ...toCreateOrUpdateProductData(product, priceList.id),
-          },
-          select: { id: true },
-        })
-
-        if (product.initialStock > 0) {
-          await tx.stockMovement.create({
-            data: {
-              productId: updatedProduct.id,
-              createdByUserId,
-              type: "MANUAL_ADJUSTMENT",
-              quantityDelta: product.initialStock,
-              previousStock: existingProduct.stock,
-              nextStock,
-              notes: "Ajuste manual por actualización de producto existente.",
-            },
-          })
-
-          stockMovementsCreated += 1
-        }
-
-        priceListItems.push({
-          priceListId: priceList.id,
-          productId: updatedProduct.id,
-          supplierProductCode: product.supplierProductCode,
-          rawName: product.name,
-          rawDescription: product.description ?? null,
-          brand: product.brand ?? null,
-          categoryCode: product.categoryCode ?? null,
-          categoryName: product.categoryName ?? null,
-          barcode: product.barcode ?? null,
-          listPrice: product.listPrice ?? null,
-          offerPrice: product.offerPrice ?? null,
-          vatRate: product.vatRate ?? null,
-        })
-
-        productsUpdated += 1
-        continue
-      }
-
-      const createdProduct = await tx.product.create({
+      const updatedProduct = await tx.product.update({
+        where: { id: existingProduct.id },
         data: {
-          supplierId: priceList.supplierId,
-          supplierProductCode: product.supplierProductCode,
-          stock: product.initialStock,
-          ...toCreateOrUpdateProductData(product, priceList.id),
+          stock: nextStock,
+          ...toCreateOrUpdateProductData(input.product, priceList.id),
         },
         select: { id: true },
       })
 
-      if (
-        product.initialStock > 0
-      ) {
+      productId = updatedProduct.id
+      updatedExistingProduct = true
+
+      if (input.product.initialStock > 0) {
+        await tx.stockMovement.create({
+          data: {
+            productId: updatedProduct.id,
+            createdByUserId,
+            type: "MANUAL_ADJUSTMENT",
+            quantityDelta: input.product.initialStock,
+            previousStock: existingProduct.stock,
+            nextStock,
+            notes: "Ajuste manual por actualización de producto existente.",
+          },
+        })
+
+        stockMovementsCreated += 1
+      }
+    } else {
+      const createdProduct = await tx.product.create({
+        data: {
+          supplierId: priceList.supplierId,
+          supplierProductCode: input.product.supplierProductCode,
+          stock: input.product.initialStock,
+          ...toCreateOrUpdateProductData(input.product, priceList.id),
+        },
+        select: { id: true },
+      })
+
+      productId = createdProduct.id
+
+      if (input.product.initialStock > 0) {
         await tx.stockMovement.create({
           data: {
             productId: createdProduct.id,
             createdByUserId,
             type: "INITIAL",
-            quantityDelta: product.initialStock,
+            quantityDelta: input.product.initialStock,
             previousStock: 0,
-            nextStock: product.initialStock,
+            nextStock: input.product.initialStock,
             notes: "Carga manual inicial de producto.",
           },
         })
 
         stockMovementsCreated += 1
       }
+    }
 
-      priceListItems.push({
+    await tx.supplierPriceListItem.create({
+      data: {
         priceListId: priceList.id,
-        productId: createdProduct.id,
-        supplierProductCode: product.supplierProductCode,
-        rawName: product.name,
-        rawDescription: product.description ?? null,
-        brand: product.brand ?? null,
-        categoryCode: product.categoryCode ?? null,
-        categoryName: product.categoryName ?? null,
-        barcode: product.barcode ?? null,
-        listPrice: product.listPrice ?? null,
-        offerPrice: product.offerPrice ?? null,
-        vatRate: product.vatRate ?? null,
-      })
-
-      productsCreated += 1
-    }
-
-    if (priceListItems.length > 0) {
-      await tx.supplierPriceListItem.createMany({
-        data: priceListItems,
-      })
-    }
+        productId,
+        supplierProductCode: input.product.supplierProductCode,
+        rawName: input.product.name,
+        rawDescription: input.product.description ?? null,
+        brand: input.product.brand ?? null,
+        categoryCode: input.product.categoryCode ?? null,
+        categoryName: input.product.categoryName ?? null,
+        barcode: input.product.barcode ?? null,
+        listPrice: input.product.listPrice ?? null,
+        offerPrice: input.product.offerPrice ?? null,
+        vatRate: input.product.vatRate ?? null,
+      },
+    })
 
     await tx.supplierPriceList.update({
       where: { id: priceList.id },
@@ -269,10 +225,8 @@ export async function createManualProductBatch(
     return {
       priceListId: priceList.id,
       supplierId: priceList.supplierId,
-      updatedExistingProducts: conflicts.length > 0,
-      productsCreated,
-      productsUpdated,
-      itemsImported: priceListItems.length,
+      updatedExistingProduct,
+      productId,
       stockMovementsCreated,
     }
   }, { timeout: 20000 })
