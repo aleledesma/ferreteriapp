@@ -2,12 +2,12 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { Loader2, Shield, UserCheck, UserCog, UserX } from "lucide-react"
+import { toast } from "sonner"
 
 import type { RoleUpdateResult } from "@/app/admin/actions"
 import { updateUserRoleAction } from "@/app/admin/actions"
 import { MANAGEABLE_ROLES } from "@/app/admin/constants"
 import type { ManagedUser } from "@/app/admin/types"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,11 +38,6 @@ type UserManagementPanelProps = {
   users: ManagedUser[]
 }
 
-type Notice = {
-  tone: "success" | "error"
-  message: string
-}
-
 function getRoleLabel(role: ManagedUser["role"]) {
   switch (role) {
     case "ADMIN":
@@ -70,7 +65,6 @@ export function UserManagementPanel({ currentUserId, users }: UserManagementPane
   const [selectedRoles, setSelectedRoles] = useState<Record<string, ManagedUser["role"]>>(
     Object.fromEntries(users.map((user) => [user.id, user.role])),
   )
-  const [notice, setNotice] = useState<Notice | null>(null)
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -89,19 +83,23 @@ export function UserManagementPanel({ currentUserId, users }: UserManagementPane
 
   function handleSubmit(userId: string) {
     const nextRole = selectedRoles[userId]
+    const targetUser = managedUsers.find((user) => user.id === userId)
     const formData = new FormData()
     formData.set("targetUserId", userId)
     formData.set("nextRole", nextRole)
 
     setPendingUserId(userId)
-    setNotice(null)
+    const toastId = toast.loading(`Actualizando rol de ${targetUser?.name ?? targetUser?.email ?? "usuario"}...`)
 
     startTransition(async () => {
       try {
         const result = (await updateUserRoleAction(formData)) as RoleUpdateResult
 
         if (result.status === "error") {
-          setNotice({ tone: "error", message: result.message })
+          toast.error("No se pudo actualizar el rol", {
+            id: toastId,
+            description: result.message,
+          })
           return
         }
 
@@ -113,12 +111,15 @@ export function UserManagementPanel({ currentUserId, users }: UserManagementPane
           setSelectedRoles((current) => ({ ...current, [updatedUser.id]: updatedUser.role }))
         }
 
-        setNotice({ tone: "success", message: result.message })
+        toast.success("Rol actualizado", {
+          id: toastId,
+          description: result.message,
+        })
       } catch (error) {
         console.error(error)
-        setNotice({
-          tone: "error",
-          message: "No se pudo guardar el cambio. Inténtalo nuevamente.",
+        toast.error("No se pudo guardar el cambio", {
+          id: toastId,
+          description: "Inténtalo nuevamente.",
         })
       } finally {
         setPendingUserId(null)
@@ -166,15 +167,6 @@ export function UserManagementPanel({ currentUserId, users }: UserManagementPane
           </CardHeader>
         </Card>
       </section>
-
-      {notice ? (
-        <Alert
-          variant={notice.tone === "error" ? "destructive" : "success"}
-          className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-        >
-          <AlertDescription>{notice.message}</AlertDescription>
-        </Alert>
-      ) : null}
 
       <Card className="overflow-hidden border-border/60 shadow-sm animate-in fade-in-0 slide-in-from-bottom-3 duration-500 delay-200">
         <CardHeader className="border-b bg-gradient-to-r from-background to-muted/40">
