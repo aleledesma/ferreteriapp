@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, Save } from "lucide-react"
+import { toast } from "sonner"
 
 import type { SupplierListItem } from "@/lib/suppliers/types"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -45,14 +45,12 @@ const EMPTY_VALUES: SupplierFormValues = {
 export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: SupplierFormSheetProps) {
   const [values, setValues] = useState<SupplierFormValues>(EMPTY_VALUES)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const mode = useMemo(() => (supplier ? "update" : "create"), [supplier])
 
   useEffect(() => {
     if (!supplier) {
       setValues(EMPTY_VALUES)
-      setErrorMessage(null)
       return
     }
 
@@ -63,7 +61,6 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
       address: supplier.address ?? "",
       notes: supplier.notes ?? "",
     })
-    setErrorMessage(null)
   }, [supplier])
 
   function updateField(field: keyof SupplierFormValues, value: string) {
@@ -73,7 +70,9 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSubmitting(true)
-    setErrorMessage(null)
+    const toastId = toast.loading(
+      mode === "create" ? "Creando proveedor..." : "Guardando cambios del proveedor...",
+    )
 
     try {
       const response = await fetch(mode === "create" ? "/api/suppliers" : `/api/suppliers/${supplier?.id}`, {
@@ -96,12 +95,16 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
       await onSaved(payload.supplier, mode)
       onOpenChange(false)
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "No se pudo guardar el proveedor.",
-      )
+      toast.error(mode === "create" ? "No se pudo crear el proveedor" : "No se pudo actualizar el proveedor", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "No se pudo guardar el proveedor.",
+      })
+      return
     } finally {
       setIsSubmitting(false)
     }
+
+    toast.dismiss(toastId)
   }
 
   return (
@@ -115,12 +118,6 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 px-6 py-4">
-          {errorMessage ? (
-            <Alert variant="destructive">
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          ) : null}
-
           <div className="grid gap-5 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="supplier-name">Nombre</Label>

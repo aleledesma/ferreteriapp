@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, Plus } from "lucide-react"
+import { toast } from "sonner"
 
 import { ManualProductUpdateDialog } from "@/components/products/manual-product-update-dialog"
 import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -34,12 +34,6 @@ import type {
   ManualSupplierPriceListItem,
 } from "@/lib/products/manual-product-types"
 import type { SupplierListItem } from "@/lib/suppliers/types"
-
-type Notice = {
-  tone: "success" | "error"
-  title: string
-  message: string
-}
 
 type PriceListMode = "existing" | "new"
 
@@ -156,7 +150,6 @@ export function ProductImportManualTab() {
   const [selectedPriceListId, setSelectedPriceListId] = useState("")
   const [newPriceListName, setNewPriceListName] = useState("")
   const [product, setProduct] = useState<ManualProductDraft>(createEmptyDraft())
-  const [notice, setNotice] = useState<Notice | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSupplierSheetOpen, setIsSupplierSheetOpen] = useState(false)
   const [conflict, setConflict] = useState<ManualExistingProductConflict | null>(null)
@@ -171,6 +164,17 @@ export function ProductImportManualTab() {
       ),
     [priceLists],
   )
+
+  useEffect(() => {
+    if (!error) {
+      return
+    }
+
+    toast.error("No se pudo cargar proveedores", {
+      id: "manual-product-suppliers-error",
+      description: error,
+    })
+  }, [error])
 
   useEffect(() => {
     async function loadPriceLists() {
@@ -199,10 +203,9 @@ export function ProductImportManualTab() {
 
         setPriceLists(payload.items ?? EMPTY_PRICE_LISTS)
       } catch (loadError) {
-        setNotice({
-          tone: "error",
-          title: "No se pudieron cargar las listas",
-          message:
+        toast.error("No se pudieron cargar las listas", {
+          id: "manual-price-lists-error",
+          description:
             loadError instanceof Error
               ? loadError.message
               : "No se pudieron cargar las listas del proveedor seleccionado.",
@@ -328,29 +331,28 @@ export function ProductImportManualTab() {
   }
 
   async function handleSubmit() {
-    setNotice(null)
     setIsSubmitting(true)
+    const toastId = toast.loading("Guardando producto...")
 
     try {
       const result = await submitProduct(false)
       if (!result) {
+        toast.dismiss(toastId)
         return
       }
 
-      setNotice({
-        tone: "success",
-        title: "Producto guardado",
-        message: result.updatedExistingProduct
+      toast.success(result.updatedExistingProduct ? "Producto actualizado" : "Producto creado", {
+        id: toastId,
+        description: result.updatedExistingProduct
           ? "El producto se actualizó correctamente."
           : "El producto se creó correctamente.",
       })
       setProduct(createEmptyDraft())
       setPendingPriceListId(null)
     } catch (submitError) {
-      setNotice({
-        tone: "error",
-        title: "No se pudo guardar el producto",
-        message:
+      toast.error("No se pudo guardar el producto", {
+        id: toastId,
+        description:
           submitError instanceof Error
             ? submitError.message
             : "Ocurrió un error inesperado al guardar el producto.",
@@ -367,28 +369,27 @@ export function ProductImportManualTab() {
     }
 
     setIsSubmitting(true)
+    const toastId = toast.loading("Actualizando producto existente...")
 
     try {
       const result = await submitProduct(true, pendingPriceListId)
       if (!result) {
+        toast.dismiss(toastId)
         return
       }
 
       setIsConflictOpen(false)
       setConflict(null)
-      setNotice({
-        tone: "success",
-        title: "Producto actualizado",
-        message:
-          "Se actualizó el producto existente y se sumó el stock indicado.",
+      toast.success("Producto actualizado", {
+        id: toastId,
+        description: "Se actualizó el producto existente y se sumó el stock indicado.",
       })
       setProduct(createEmptyDraft())
       setPendingPriceListId(null)
     } catch (confirmError) {
-      setNotice({
-        tone: "error",
-        title: "No se pudo confirmar la actualización",
-        message:
+      toast.error("No se pudo confirmar la actualización", {
+        id: toastId,
+        description:
           confirmError instanceof Error
             ? confirmError.message
             : "Ocurrió un error inesperado al actualizar el producto.",
@@ -414,24 +415,6 @@ export function ProductImportManualTab() {
           </CardHeader>
 
           <CardContent className="space-y-6 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.02))] p-6 md:p-8">
-            {(notice || error) && (
-              <Alert
-                variant={notice?.tone === "error" || error ? "destructive" : "success"}
-                className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-              >
-                <AlertDescription>
-                  {notice ? (
-                    <>
-                      <span className="font-medium">{notice.title}.</span>{" "}
-                      {notice.message}
-                    </>
-                  ) : (
-                    error
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
             <Card className="overflow-hidden border-border/70 shadow-xs">
               <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(255,255,255,0.03),transparent_65%)] pb-5">
                 <CardTitle className="text-lg">Contexto</CardTitle>
@@ -782,10 +765,8 @@ export function ProductImportManualTab() {
             return next.sort((a, b) => a.name.localeCompare(b.name, "es"))
           })
           setSelectedSupplierId(supplier.id)
-          setNotice({
-            tone: "success",
-            title: "Proveedor creado",
-            message: `Proveedor ${supplier.name} creado correctamente.`,
+          toast.success("Proveedor creado", {
+            description: `Proveedor ${supplier.name} creado correctamente.`,
           })
           await refetch()
         }}

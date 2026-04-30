@@ -10,9 +10,9 @@ import {
   Trash2,
   UploadCloud,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,13 +44,6 @@ type SupplierUploadGroup = {
   id: string
   supplierId: string
   files: UploadFileEntry[]
-}
-
-type Notice = {
-  tone: "success" | "error"
-  title: string
-  message: string
-  traceId?: string | null
 }
 
 const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"]
@@ -90,7 +83,6 @@ export function ProductImportForm() {
   const [groups, setGroups] = useState<SupplierUploadGroup[]>([])
   const [suppliers, setSuppliers] = useState<SupplierListItem[]>([])
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(true)
-  const [notice, setNotice] = useState<Notice | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSupplierSheetOpen, setIsSupplierSheetOpen] = useState(false)
   const [targetGroupId, setTargetGroupId] = useState<string | null>(null)
@@ -113,10 +105,9 @@ export function ProductImportForm() {
 
         setSuppliers(payload.items)
       } catch (error) {
-        setNotice({
-          tone: "error",
-          title: "No se pudo cargar proveedores",
-          message:
+        toast.error("No se pudo cargar proveedores", {
+          id: "product-import-suppliers-error",
+          description:
             error instanceof Error
               ? error.message
               : "No se pudo cargar el listado de proveedores disponibles.",
@@ -167,7 +158,6 @@ export function ProductImportForm() {
 
   function addSupplierGroup() {
     setGroups((current) => [...current, createSupplierGroup()])
-    setNotice(null)
   }
 
   function removeSupplierGroup(groupId: string) {
@@ -205,15 +195,12 @@ export function ProductImportForm() {
     const invalidFile = files.find((file) => !isSupportedFile(file))
 
     if (invalidFile) {
-      setNotice({
-        tone: "error",
-        title: "Formato no soportado",
-        message: `El archivo ${invalidFile.name} no es compatible. Usa XLSX, XLS o CSV.`,
+      toast.warning("Formato no soportado", {
+        description: `El archivo ${invalidFile.name} no es compatible. Usa XLSX, XLS o CSV.`,
       })
       return
     }
 
-    setNotice(null)
     setGroups((current) =>
       current.map((group) =>
         group.id === groupId
@@ -239,11 +226,8 @@ export function ProductImportForm() {
 
   async function handleSubmit() {
     if (!groups.length) {
-      setNotice({
-        tone: "error",
-        title: "Carga incompleta",
-        message:
-          "Agrega al menos un proveedor antes de iniciar la carga masiva.",
+      toast.info("Carga incompleta", {
+        description: "Agrega al menos un proveedor antes de iniciar la carga masiva.",
       })
       return
     }
@@ -253,10 +237,8 @@ export function ProductImportForm() {
     )
 
     if (invalidGroup) {
-      setNotice({
-        tone: "error",
-        title: "Grupo incompleto",
-        message:
+      toast.warning("Grupo incompleto", {
+        description:
           invalidGroup.supplierId.length === 0
             ? "Selecciona un proveedor para cada grupo antes de continuar."
             : "Cada proveedor debe tener al menos un archivo cargado.",
@@ -278,7 +260,7 @@ export function ProductImportForm() {
     })
 
     setIsSubmitting(true)
-    setNotice(null)
+    const toastId = toast.loading("Enviando archivos para su procesamiento...")
 
     try {
       const response = await fetch("/api/price-lists/ingest", {
@@ -296,20 +278,21 @@ export function ProductImportForm() {
         throw new Error(payload.error || "No se pudo iniciar la carga masiva.")
       }
 
-      setNotice({
-        tone: "success",
-        title: "Carga iniciada",
-        message:
+      toast.success("Carga iniciada", {
+        id: toastId,
+        description: [
           payload.message ||
-          "Los archivos fueron enviados correctamente para su procesamiento con inteligencia artificial.",
-        traceId: payload.traceId,
+            "Los archivos fueron enviados correctamente para su procesamiento con inteligencia artificial.",
+          payload.traceId ? `ID de seguimiento: ${payload.traceId}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       })
       setGroups([])
     } catch (error) {
-      setNotice({
-        tone: "error",
-        title: "No se pudo iniciar la carga",
-        message:
+      toast.error("No se pudo iniciar la carga", {
+        id: toastId,
+        description:
           error instanceof Error
             ? error.message
             : "Ocurrió un error inesperado al enviar los archivos.",
@@ -321,7 +304,6 @@ export function ProductImportForm() {
 
   function clearAll() {
     setGroups([])
-    setNotice(null)
   }
 
   return (
@@ -353,23 +335,6 @@ export function ProductImportForm() {
               )}
             </CardHeader>
             <CardContent className="space-y-6 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.02))]">
-              {notice ? (
-                <Alert
-                  variant={notice.tone === "error" ? "destructive" : "success"}
-                  className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-                >
-                  <AlertDescription>
-                    <span className="font-medium">{notice.title}.</span>{" "}
-                    {notice.message}
-                    {notice.traceId ? (
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        ID de seguimiento: {notice.traceId}
-                      </span>
-                    ) : null}
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-
               {isLoadingSuppliers ? (
                 <div className="space-y-4">
                   <Skeleton className="h-36 w-full rounded-3xl" />
@@ -789,10 +754,8 @@ export function ProductImportForm() {
             )
           }
 
-          setNotice({
-            tone: "success",
-            title: "Proveedor creado",
-            message: `Proveedor ${supplier.name} creado correctamente y listo para asociar archivos.`,
+          toast.success("Proveedor creado", {
+            description: `Proveedor ${supplier.name} creado correctamente y listo para asociar archivos.`,
           })
         }}
       />

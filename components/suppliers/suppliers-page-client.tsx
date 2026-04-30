@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Plus, Search } from "lucide-react"
+import { toast } from "sonner"
 
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value"
 import type { SupplierDeleteResult, SupplierListItem, SupplierListResult } from "@/lib/suppliers/types"
@@ -11,7 +12,6 @@ import { DeleteSupplierDialog } from "@/components/suppliers/delete-supplier-dia
 import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
 import { SuppliersTable } from "@/components/suppliers/suppliers-table"
 import { SuppliersTableSkeleton } from "@/components/suppliers/suppliers-table-skeleton"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -28,11 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-type Notice = {
-  tone: "success" | "error"
-  message: string
-}
 
 const EMPTY_RESULT: SupplierListResult = {
   items: [],
@@ -55,7 +50,6 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
   const [pageSize, setPageSize] = useState(initialPageSize)
   const [data, setData] = useState<SupplierListResult>(EMPTY_RESULT)
   const [isLoading, setIsLoading] = useState(true)
-  const [notice, setNotice] = useState<Notice | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<SupplierListItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SupplierListItem | null>(null)
@@ -83,9 +77,9 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
 
       setData(payload)
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
+      toast.error("No se pudo cargar proveedores", {
+        id: "suppliers-fetch-error",
+        description:
           error instanceof Error
             ? error.message
             : "No se pudo cargar el listado de proveedores.",
@@ -126,7 +120,7 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
     if (!deleteTarget) return
 
     setIsDeleting(true)
-    setNotice(null)
+    const toastId = toast.loading(`Eliminando proveedor ${deleteTarget.name}...`)
 
     try {
       const response = await fetch(`/api/suppliers/${deleteTarget.id}`, {
@@ -139,18 +133,18 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
       }
 
       setDeleteTarget(null)
-      setNotice({
-        tone: "success",
-        message:
+      toast.success("Proveedor procesado", {
+        id: toastId,
+        description:
           payload.mode === "soft-delete"
             ? "El proveedor quedó inactivo porque ya tiene relaciones en el sistema."
             : "Proveedor eliminado correctamente.",
       })
       await fetchSuppliers()
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
+      toast.error("No se pudo eliminar el proveedor", {
+        id: toastId,
+        description:
           error instanceof Error ? error.message : "No se pudo eliminar el proveedor.",
       })
     } finally {
@@ -159,7 +153,7 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
   }
 
   async function handleReactivate(supplier: SupplierListItem) {
-    setNotice(null)
+    const toastId = toast.loading(`Reactivando proveedor ${supplier.name}...`)
 
     try {
       const response = await fetch(`/api/suppliers/${supplier.id}/reactivate`, {
@@ -172,15 +166,15 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
         throw new Error(payload.error || "No se pudo reactivar el proveedor.")
       }
 
-      setNotice({
-        tone: "success",
-        message: `Proveedor ${payload.supplier.name} reactivado correctamente.`,
+      toast.success("Proveedor reactivado", {
+        id: toastId,
+        description: `Proveedor ${payload.supplier.name} reactivado correctamente.`,
       })
       await fetchSuppliers()
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
+      toast.error("No se pudo reactivar el proveedor", {
+        id: toastId,
+        description:
           error instanceof Error ? error.message : "No se pudo reactivar el proveedor.",
       })
     }
@@ -202,15 +196,6 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
           </Button>
         </CardHeader>
         <CardContent className="space-y-5">
-          {notice ? (
-            <Alert
-              variant={notice.tone === "error" ? "destructive" : "success"}
-              className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-            >
-              <AlertDescription>{notice.message}</AlertDescription>
-            </Alert>
-          ) : null}
-
           <div className="flex flex-col gap-4 rounded-xl border border-border/70 bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full max-w-xl">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -291,9 +276,8 @@ export function SuppliersPageClient({ initialPageSize = 10 }: SuppliersPageClien
         supplier={editingSupplier}
         onOpenChange={setFormOpen}
         onSaved={async (supplier, mode) => {
-          setNotice({
-            tone: "success",
-            message:
+          toast.success(mode === "create" ? "Proveedor creado" : "Proveedor actualizado", {
+            description:
               mode === "create"
                 ? `Proveedor ${supplier.name} creado correctamente.`
                 : `Proveedor ${supplier.name} actualizado correctamente.`,
