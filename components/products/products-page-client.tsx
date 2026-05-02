@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
 import type {
+  DeactivateProductsResponse,
   ProductActivityStatusFilter,
   ProductCatalogKpisResponse,
   ProductCatalogSupplierOption,
@@ -16,6 +17,7 @@ import type {
 } from "@/lib/products/catalog-types"
 
 import { ProductDetailSheet } from "@/components/products/product-detail-sheet"
+import { DeactivateProductsDialog } from "@/components/products/deactivate-products-dialog"
 import { ProductsKpiStrip } from "@/components/products/products-kpi-strip"
 import { ProductsTable } from "@/components/products/products-table"
 import { ProductsTableSkeleton } from "@/components/products/products-table-skeleton"
@@ -96,6 +98,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   const [filters, setFilters] = useState(() => buildInitialFilters(initialCatalog.appliedFilters))
   const [isPending, startTransition] = useTransition()
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false)
+  const [isDeactivating, setIsDeactivating] = useState(false)
 
   const activeProductId = searchParams.get("product")
 
@@ -152,6 +157,7 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
         const params = buildBaseParams()
         const nextCatalog = await fetchCatalog(params)
         setCatalog(nextCatalog)
+        setSelectedIds([])
         router.replace(`/products?${buildRouteParams(activeProductId).toString()}`, { scroll: false })
       } catch (error) {
         toast.error("No se pudo actualizar el catálogo", {
@@ -196,6 +202,74 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       saleStatus: "all",
       sort: "critical_stock",
     })
+  }
+
+  function toggleSelection(productId: string, checked: boolean) {
+    setSelectedIds((current) => {
+      if (checked) {
+        return current.includes(productId) ? current : [...current, productId]
+      }
+
+      return current.filter((id) => id !== productId)
+    })
+  }
+
+  function toggleAllVisible(checked: boolean) {
+    setSelectedIds((current) => {
+      if (!checked) {
+        return current.filter((id) => !catalog.items.some((item) => item.id === id))
+      }
+
+      const merged = new Set(current)
+      for (const item of catalog.items) {
+        merged.add(item.id)
+      }
+
+      return Array.from(merged)
+    })
+  }
+
+  async function refreshCatalogWithCurrentFilters() {
+    const params = buildBaseParams()
+    const nextCatalog = await fetchCatalog(params)
+    setCatalog(nextCatalog)
+    setSelectedIds([])
+  }
+
+  async function handleDeactivateSelected() {
+    if (selectedIds.length === 0) {
+      return
+    }
+
+    setIsDeactivating(true)
+
+    try {
+      const response = await fetch("/api/products/deactivate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ productIds: selectedIds }),
+      })
+
+      const payload = (await response.json()) as DeactivateProductsResponse & { error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error || "No se pudieron desactivar los productos.")
+      }
+
+      await refreshCatalogWithCurrentFilters()
+      setIsDeactivateDialogOpen(false)
+      toast.success("Productos desactivados", {
+        description: `${payload.processedCount} producto${payload.processedCount === 1 ? "" : "s"} actualizado${payload.processedCount === 1 ? "" : "s"}.`,
+      })
+    } catch (error) {
+      toast.error("No se pudieron desactivar los productos", {
+        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      })
+    } finally {
+      setIsDeactivating(false)
+    }
   }
 
   return (
@@ -313,6 +387,11 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 <Badge variant="outline" className="bg-background/80">
                   {catalog.items.length} producto{catalog.items.length === 1 ? "" : "s"} cargado{catalog.items.length === 1 ? "" : "s"}
                 </Badge>
+                {selectedIds.length > 0 ? (
+                  <Badge variant="outline" className="bg-background/80">
+                    {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
+                  </Badge>
+                ) : null}
                 {activeFilterCount > 0 ? (
                   <Badge variant="outline" className="bg-background/80">
                     {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} activo{activeFilterCount === 1 ? "" : "s"}
@@ -321,6 +400,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" disabled={selectedIds.length === 0} onClick={() => setIsDeactivateDialogOpen(true)}>
+                  Desactivar seleccionados
+                </Button>
                 <Button type="button" variant="outline" onClick={resetFilters}>
                   <X className="size-4" />
                   Limpiar
@@ -336,7 +418,14 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
             <ProductsTableSkeleton />
           ) : catalog.items.length > 0 ? (
             <>
-              <ProductsTable items={catalog.items} activeProductId={activeProductId} onOpenDetail={syncProductQuery} />
+              <ProductsTable
+                items={catalog.items}
+                activeProductId={activeProductId}
+                onOpenDetail={syncProductQuery}
+                selectedIds={selectedIds}
+                onToggleSelection={toggleSelection}
+                onToggleAll={toggleAllVisible}
+              />
 
               <div className="flex justify-center pt-2">
                 <Button type="button" variant="outline" onClick={() => void handleLoadMore()} disabled={!catalog.pageInfo.hasMore || isLoadingMore}>
@@ -358,10 +447,21 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       <ProductDetailSheet
         productId={activeProductId}
         open={Boolean(activeProductId)}
+        onProductChanged={refreshCatalogWithCurrentFilters}
         onOpenChange={(open) => {
           if (!open) {
             syncProductQuery(null)
           }
+        }}
+      />
+
+      <DeactivateProductsDialog
+        open={isDeactivateDialogOpen}
+        selectedCount={selectedIds.length}
+        isSubmitting={isDeactivating}
+        onOpenChange={setIsDeactivateDialogOpen}
+        onConfirm={() => {
+          void handleDeactivateSelected()
         }}
       />
     </div>

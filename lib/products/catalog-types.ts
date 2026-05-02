@@ -137,3 +137,41 @@ export type ProductDetailDto = {
 export type ProductDetailResponse = {
   product: ProductDetailDto
 }
+
+export type DeactivateProductsRequest = {
+  productIds: string[]
+}
+
+export type DeactivateProductsResponse = {
+  processedCount: number
+  updatedIds: string[]
+}
+
+export type UpdateProductRequest = {
+  name?: string
+  description?: string | null
+  brand?: string | null
+  categoryCode?: string | null
+  categoryName?: string | null
+  barcode?: string | null
+  costPrice?: string
+  salePrice?: string
+  minStock?: number
+  isActive?: boolean
+  isForSale?: boolean
+}
+
+export type UpdateProductResponse = {
+  product: ProductDetailDto
+}
+
+export type StockAdjustmentRequest = {
+  nextStock: number
+  notes?: string | null
+}
+
+export type StockAdjustmentResponse = {
+  productId: string
+  stock: number
+  movement: ProductStockMovementDto
+}

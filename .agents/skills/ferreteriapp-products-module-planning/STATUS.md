@@ -55,30 +55,38 @@
   - Nada pendiente en esta etapa.
 
 ### Stage 3 — Filters, search, and sorting
-- Estado: in_progress
+- Estado: completed
 - Avances:
   - Se implementaron controles de búsqueda, proveedor, categoría, marca, estado de stock, actividad, estado de venta y orden.
 - Falta:
-  - Refinar persistencia/UX de filtros según avance del módulo.
+  - Nada pendiente en esta etapa.
 
 ### Stage 4 — Infinite scroll behavior
-- Estado: pending
-- Avances: ninguno
+- Estado: completed
+- Avances:
+  - Se implementó la carga incremental controlada mediante botón `Cargar más`.
+  - Se fijó tamaño de lote en 100 productos por carga.
 - Falta:
-  - Adaptar esta etapa al patrón confirmado de carga incremental controlada (`Cargar más`).
+  - Nada pendiente en esta etapa.
 
 ### Stage 5 — Product detail modal
 - Estado: in_progress
 - Avances:
   - Se implementó una primera versión del detalle en sheet con resumen comercial, inventario, resumen liviano de ventas e historial de movimientos.
+  - Se agregaron acciones rápidas reales para activar/desactivar y habilitar/deshabilitar venta.
+  - Se agregó edición básica de datos operativos desde el detalle.
+  - Se agregó ajuste manual de stock con persistencia real y refresco de movimientos.
 - Falta:
-  - Completar acciones puntuales y profundizar la organización interna del detalle.
+  - Refinar la organización interna del detalle y su UX.
 
 ### Stage 6 — Actions and operational workflows
-- Estado: pending
-- Avances: ninguno
+- Estado: in_progress
+- Avances:
+  - Se implementó desactivación lógica masiva de productos seleccionados.
+  - Se implementaron endpoints para desactivación lógica, edición de producto y ajuste manual de stock.
+  - Se agregó selección múltiple en el listado.
 - Falta:
-  - Implementar acciones aprobadas desde listado/modal.
+  - Completar acciones faltantes de operación avanzada si hicieran falta.
 
 ### Stage 7 — Polish, verification, and acceptance
 - Estado: pending
@@ -89,9 +97,9 @@
 ## Próximos pasos inmediatos
 
 1. Iniciar Stage 1.
-2. Consolidar Stage 3, Stage 4 adaptado y Stage 5.
-3. Implementar acciones operativas pendientes del modal/listado.
-4. Recién después avanzar al pulido final.
+2. Refinar UX del detalle y de los filtros si fuera necesario.
+3. Revisar si Stage 5 y Stage 6 ya pueden cerrarse.
+4. Avanzar al pulido final.
 
 ## Bloqueos actuales
 
