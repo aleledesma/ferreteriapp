@@ -18,6 +18,9 @@ type ProductsTableProps = {
   items: ProductListItemDto[]
   activeProductId?: string | null
   onOpenDetail: (productId: string) => void
+  selectedIds: string[]
+  onToggleSelection: (productId: string, checked: boolean) => void
+  onToggleAll: (checked: boolean) => void
 }
 
 function formatCurrency(value: string) {
@@ -50,12 +53,23 @@ function getStockLabel(stockStatus: ProductListItemDto["inventory"]["stockStatus
   }
 }
 
-export function ProductsTable({ items, activeProductId, onOpenDetail }: ProductsTableProps) {
+export function ProductsTable({ items, activeProductId, onOpenDetail, selectedIds, onToggleSelection, onToggleAll }: ProductsTableProps) {
+  const allSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id))
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/85 shadow-sm">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12 px-4 py-4">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(event) => onToggleAll(event.target.checked)}
+                aria-label="Seleccionar productos visibles"
+                className="size-4 rounded border-border"
+              />
+            </TableHead>
             <TableHead className="px-4 py-4">Producto</TableHead>
             <TableHead className="px-4 py-4">Proveedor</TableHead>
             <TableHead className="px-4 py-4">Precio</TableHead>
@@ -67,6 +81,7 @@ export function ProductsTable({ items, activeProductId, onOpenDetail }: Products
         <TableBody>
           {items.map((product) => {
             const isActiveRow = activeProductId === product.id
+            const isSelected = selectedIds.includes(product.id)
 
             return (
               <TableRow
@@ -76,6 +91,15 @@ export function ProductsTable({ items, activeProductId, onOpenDetail }: Products
                   isActiveRow && "bg-primary/5",
                 )}
               >
+                <TableCell className="px-4 py-4 align-top">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(event) => onToggleSelection(product.id, event.target.checked)}
+                    aria-label={`Seleccionar ${product.name}`}
+                    className="size-4 rounded border-border"
+                  />
+                </TableCell>
                 <TableCell className="max-w-[340px] px-4 py-4 align-top">
                   <div className="space-y-2">
                     <div className="space-y-1">

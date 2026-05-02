@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { AlertTriangle, CircleOff, Loader2, PackageSearch, ReceiptText, Warehouse } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { AlertTriangle, CircleOff, Loader2, PackageSearch, PencilLine, ReceiptText, ShieldBan, ShoppingBag, Warehouse } from "lucide-react"
 import { toast } from "sonner"
 
-import type { ProductDetailResponse } from "@/lib/products/catalog-types"
+import type { ProductDetailResponse, StockAdjustmentResponse, UpdateProductResponse } from "@/lib/products/catalog-types"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Sheet,
   SheetContent,
@@ -21,6 +23,7 @@ type ProductDetailSheetProps = {
   productId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onProductChanged?: () => Promise<void> | void
 }
 
 function formatCurrency(value: string) {
@@ -40,9 +43,47 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value))
 }
 
-export function ProductDetailSheet({ productId, open, onOpenChange }: ProductDetailSheetProps) {
+export function ProductDetailSheet({ productId, open, onOpenChange, onProductChanged }: ProductDetailSheetProps) {
   const [detail, setDetail] = useState<ProductDetailResponse["product"] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [draft, setDraft] = useState({
+    name: "",
+    brand: "",
+    categoryName: "",
+    barcode: "",
+    salePrice: "0",
+    costPrice: "0",
+    minStock: "0",
+    nextStock: "0",
+  })
+
+  const isDirty = useMemo(() => {
+    if (!detail) return false
+
+    return (
+      draft.name !== detail.name ||
+      draft.brand !== (detail.brand ?? "") ||
+      draft.categoryName !== (detail.categoryName ?? "") ||
+      draft.barcode !== (detail.barcode ?? "") ||
+      draft.salePrice !== detail.pricing.salePrice ||
+      draft.costPrice !== detail.pricing.costPrice ||
+      draft.minStock !== String(detail.inventory.minStock)
+    )
+  }, [detail, draft])
+
+  function syncDraft(nextDetail: ProductDetailResponse["product"]) {
+    setDraft({
+      name: nextDetail.name,
+      brand: nextDetail.brand ?? "",
+      categoryName: nextDetail.categoryName ?? "",
+      barcode: nextDetail.barcode ?? "",
+      salePrice: nextDetail.pricing.salePrice,
+      costPrice: nextDetail.pricing.costPrice,
+      minStock: String(nextDetail.inventory.minStock),
+      nextStock: String(nextDetail.inventory.stock),
+    })
+  }
 
   useEffect(() => {
     if (!open || !productId) {
@@ -62,6 +103,7 @@ export function ProductDetailSheet({ productId, open, onOpenChange }: ProductDet
         }
 
         setDetail(payload.product)
+        syncDraft(payload.product)
       } catch (error) {
         toast.error("No se pudo abrir el detalle", {
           description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
@@ -74,6 +116,98 @@ export function ProductDetailSheet({ productId, open, onOpenChange }: ProductDet
 
     void loadDetail()
   }, [onOpenChange, open, productId])
+
+  async function refreshParentCatalog() {
+    await onProductChanged?.()
+  }
+
+  async function handlePatch(body: Record<string, unknown>, successTitle: string) {
+    if (!productId) return
+
+    setIsSaving(true)
+
+    try {
+      const response = await fetch(`/api/products/${productId}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+
+      const payload = (await response.json()) as UpdateProductResponse & { error?: string }
+
+      if (!response.ok || !payload.product) {
+        throw new Error(payload.error || "No se pudo actualizar el producto.")
+      }
+
+      setDetail(payload.product)
+      syncDraft(payload.product)
+      await refreshParentCatalog()
+      toast.success(successTitle)
+    } catch (error) {
+      toast.error("No se pudo actualizar el producto", {
+        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleSaveDetails() {
+    await handlePatch(
+      {
+        name: draft.name,
+        brand: draft.brand,
+        categoryName: draft.categoryName,
+        barcode: draft.barcode,
+        salePrice: draft.salePrice,
+        costPrice: draft.costPrice,
+        minStock: Number(draft.minStock),
+      },
+      "Producto actualizado",
+    )
+  }
+
+  async function handleStockAdjustment() {
+    if (!productId) return
+
+    setIsSaving(true)
+
+    try {
+      const response = await fetch(`/api/products/${productId}/stock-adjustments`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ nextStock: Number(draft.nextStock) }),
+      })
+
+      const payload = (await response.json()) as StockAdjustmentResponse & { error?: string }
+
+      if (!response.ok || !payload.movement) {
+        throw new Error(payload.error || "No se pudo ajustar el stock.")
+      }
+
+      const refreshed = await fetch(`/api/products/${productId}`)
+      const refreshedPayload = (await refreshed.json()) as ProductDetailResponse & { error?: string }
+
+      if (!refreshed.ok || !refreshedPayload.product) {
+        throw new Error(refreshedPayload.error || "No se pudo refrescar el detalle del producto.")
+      }
+
+      setDetail(refreshedPayload.product)
+      syncDraft(refreshedPayload.product)
+      await refreshParentCatalog()
+      toast.success("Stock ajustado")
+    } catch (error) {
+      toast.error("No se pudo ajustar el stock", {
+        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -125,6 +259,75 @@ export function ProductDetailSheet({ productId, open, onOpenChange }: ProductDet
                 </div>
 
                 {detail.description ? <p className="text-sm leading-relaxed text-muted-foreground">{detail.description}</p> : null}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-foreground">Acciones rápidas</p>
+                  <p className="text-sm text-muted-foreground">Opera sobre el producto sin abandonar el catálogo.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSaving}
+                    onClick={() => void handlePatch({ isActive: !detail.flags.isActive }, detail.flags.isActive ? "Producto desactivado" : "Producto activado")}
+                  >
+                    <ShieldBan className="size-4" />
+                    {detail.flags.isActive ? "Desactivar" : "Activar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSaving}
+                    onClick={() => void handlePatch({ isForSale: !detail.flags.isForSale }, detail.flags.isForSale ? "Producto fuera de venta" : "Producto habilitado para venta")}
+                  >
+                    <ShoppingBag className="size-4" />
+                    {detail.flags.isForSale ? "Sacar de venta" : "Habilitar venta"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="product-name-edit">Nombre</Label>
+                  <Input id="product-name-edit" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-brand-edit">Marca</Label>
+                  <Input id="product-brand-edit" value={draft.brand} onChange={(event) => setDraft((current) => ({ ...current, brand: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-category-edit">Categoría</Label>
+                  <Input id="product-category-edit" value={draft.categoryName} onChange={(event) => setDraft((current) => ({ ...current, categoryName: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-barcode-edit">Código de barras</Label>
+                  <Input id="product-barcode-edit" value={draft.barcode} onChange={(event) => setDraft((current) => ({ ...current, barcode: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-sale-price-edit">Precio de venta</Label>
+                  <Input id="product-sale-price-edit" type="number" min="0" step="0.01" value={draft.salePrice} onChange={(event) => setDraft((current) => ({ ...current, salePrice: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-cost-price-edit">Precio de costo</Label>
+                  <Input id="product-cost-price-edit" type="number" min="0" step="0.01" value={draft.costPrice} onChange={(event) => setDraft((current) => ({ ...current, costPrice: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product-min-stock-edit">Stock mínimo</Label>
+                  <Input id="product-min-stock-edit" type="number" min="0" step="1" value={draft.minStock} onChange={(event) => setDraft((current) => ({ ...current, minStock: event.target.value }))} />
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <Button type="button" disabled={!isDirty || isSaving} onClick={() => void handleSaveDetails()}>
+                  {isSaving ? <Loader2 className="size-4 animate-spin" /> : <PencilLine className="size-4" />}
+                  Guardar cambios
+                </Button>
               </div>
             </section>
 
@@ -191,6 +394,19 @@ export function ProductDetailSheet({ productId, open, onOpenChange }: ProductDet
                   <p className="text-sm text-muted-foreground">Últimos 20 movimientos registrados.</p>
                 </div>
                 {isLoading ? <Loader2 className="size-4 animate-spin" /> : null}
+              </div>
+
+              <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="product-stock-adjustment">Ajuste manual de stock</Label>
+                    <Input id="product-stock-adjustment" type="number" min="0" step="1" value={draft.nextStock} onChange={(event) => setDraft((current) => ({ ...current, nextStock: event.target.value }))} />
+                  </div>
+                  <Button type="button" disabled={isSaving || Number(draft.nextStock) === detail.inventory.stock} onClick={() => void handleStockAdjustment()}>
+                    {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Warehouse className="size-4" />}
+                    Ajustar stock
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-3">

@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client"
+import { Prisma, StockMovementType } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import {
@@ -8,12 +8,16 @@ import type {
   ProductCatalogFilters,
   ProductCatalogKpisResponse,
   ProductCatalogSupplierOption,
+  DeactivateProductsResponse,
   ProductDetailDto,
   ProductListItemDto,
   ProductListResponse,
   ProductSortOption,
   ProductStockMovementDto,
   ProductStockStatus,
+  StockAdjustmentRequest,
+  StockAdjustmentResponse,
+  UpdateProductRequest,
 } from "@/lib/products/catalog-types"
 
 type ProductRow = {
@@ -381,4 +385,99 @@ export async function getProductDetail(productId: string): Promise<ProductDetail
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   }
+}
+
+export async function deactivateProducts(productIds: string[]): Promise<DeactivateProductsResponse> {
+  const result = await prisma.product.updateMany({
+    where: {
+      id: {
+        in: productIds,
+      },
+    },
+    data: {
+      isActive: false,
+    },
+  })
+
+  return {
+    processedCount: result.count,
+    updatedIds: productIds,
+  }
+}
+
+export async function updateProduct(productId: string, input: UpdateProductRequest): Promise<ProductDetailDto | null> {
+  await prisma.product.update({
+    where: { id: productId },
+    data: {
+      name: input.name,
+      description: input.description,
+      brand: input.brand,
+      categoryCode: input.categoryCode,
+      categoryName: input.categoryName,
+      barcode: input.barcode,
+      costPrice: input.costPrice,
+      salePrice: input.salePrice,
+      minStock: input.minStock,
+      isActive: input.isActive,
+      isForSale: input.isForSale,
+    },
+  })
+
+  return getProductDetail(productId)
+}
+
+export async function createManualStockAdjustment(
+  productId: string,
+  input: StockAdjustmentRequest,
+  userId: string,
+): Promise<StockAdjustmentResponse | null> {
+  const result = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        stock: true,
+      },
+    })
+
+    if (!product) {
+      return null
+    }
+
+    const movement = await tx.stockMovement.create({
+      data: {
+        productId,
+        createdByUserId: userId,
+        type: StockMovementType.MANUAL_ADJUSTMENT,
+        quantityDelta: input.nextStock - product.stock,
+        previousStock: product.stock,
+        nextStock: input.nextStock,
+        notes: input.notes ?? null,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    })
+
+    await tx.product.update({
+      where: { id: productId },
+      data: {
+        stock: input.nextStock,
+      },
+    })
+
+    return {
+      productId,
+      stock: input.nextStock,
+      movement: toStockMovementDto(movement),
+    } satisfies StockAdjustmentResponse
+  })
+
+  return result
 }
