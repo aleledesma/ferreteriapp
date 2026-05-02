@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 
 type ProductDetailSheetProps = {
   productId: string | null
@@ -43,6 +44,12 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value))
 }
 
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "medium",
+  }).format(new Date(value))
+}
+
 export function ProductDetailSheet({ productId, open, onOpenChange, onProductChanged }: ProductDetailSheetProps) {
   const [detail, setDetail] = useState<ProductDetailResponse["product"] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -56,6 +63,7 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
     costPrice: "0",
     minStock: "0",
     nextStock: "0",
+    stockNotes: "",
   })
 
   const isDirty = useMemo(() => {
@@ -82,6 +90,7 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
       costPrice: nextDetail.pricing.costPrice,
       minStock: String(nextDetail.inventory.minStock),
       nextStock: String(nextDetail.inventory.stock),
+      stockNotes: "",
     })
   }
 
@@ -180,7 +189,10 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ nextStock: Number(draft.nextStock) }),
+        body: JSON.stringify({
+          nextStock: Number(draft.nextStock),
+          notes: draft.stockNotes.trim().length > 0 ? draft.stockNotes.trim() : null,
+        }),
       })
 
       const payload = (await response.json()) as StockAdjustmentResponse & { error?: string }
@@ -354,6 +366,10 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
                     <span className="text-muted-foreground">Total vendido</span>
                     <span className="font-medium">{detail.salesSummary.totalUnitsSold}</span>
                   </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Lista vigente</span>
+                    <span className="text-right font-medium">{detail.currentPriceList?.name ?? "Sin lista vigente"}</span>
+                  </div>
                 </div>
               </div>
 
@@ -383,6 +399,14 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
                           : "Stock normal"}
                     </Badge>
                   </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Creado</span>
+                    <span className="font-medium">{formatDate(detail.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Actualizado</span>
+                    <span className="font-medium">{formatDate(detail.updatedAt)}</span>
+                  </div>
                 </div>
               </div>
             </section>
@@ -397,10 +421,20 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
               </div>
 
               <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                  <div className="space-y-2">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                  <div className="space-y-2 lg:min-w-44">
                     <Label htmlFor="product-stock-adjustment">Ajuste manual de stock</Label>
                     <Input id="product-stock-adjustment" type="number" min="0" step="1" value={draft.nextStock} onChange={(event) => setDraft((current) => ({ ...current, nextStock: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product-stock-notes">Nota del ajuste (opcional)</Label>
+                    <Textarea
+                      id="product-stock-notes"
+                      value={draft.stockNotes}
+                      onChange={(event) => setDraft((current) => ({ ...current, stockNotes: event.target.value }))}
+                      placeholder="Ej. corrección por conteo manual"
+                      className="min-h-10 resize-none"
+                    />
                   </div>
                   <Button type="button" disabled={isSaving || Number(draft.nextStock) === detail.inventory.stock} onClick={() => void handleStockAdjustment()}>
                     {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Warehouse className="size-4" />}

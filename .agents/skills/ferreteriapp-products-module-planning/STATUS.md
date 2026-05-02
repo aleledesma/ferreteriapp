@@ -76,6 +76,7 @@
   - Se agregaron acciones rápidas reales para activar/desactivar y habilitar/deshabilitar venta.
   - Se agregó edición básica de datos operativos desde el detalle.
   - Se agregó ajuste manual de stock con persistencia real y refresco de movimientos.
+  - Se enriqueció el detalle con contexto de lista vigente, metadata temporal y nota opcional en ajustes de stock.
 - Falta:
   - Refinar la organización interna del detalle y su UX.
 
