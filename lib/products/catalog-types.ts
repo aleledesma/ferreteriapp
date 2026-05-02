@@ -1,0 +1,139 @@
+export type ProductStockStatus = "sin_stock" | "stock_bajo" | "stock_normal"
+
+export type ProductActivityStatusFilter = "active" | "inactive" | "all"
+export type ProductSaleStatusFilter = "for_sale" | "not_for_sale" | "all"
+export type ProductSortOption =
+  | "critical_stock"
+  | "name"
+  | "updated_at"
+  | "sale_price"
+  | "stock"
+  | "supplier"
+
+export type ProductCatalogFilters = {
+  search: string | null
+  supplierId: string | null
+  category: string | null
+  brand: string | null
+  stockStatus: ProductStockStatus | null
+  activityStatus: ProductActivityStatusFilter
+  saleStatus: ProductSaleStatusFilter
+  sort: ProductSortOption
+  cursor: string | null
+  limit: number
+}
+
+export type ProductListItemDto = {
+  id: string
+  name: string
+  supplierProductCode: string
+  barcode: string | null
+  brand: string | null
+  categoryName: string | null
+  supplier: {
+    id: string
+    name: string
+  }
+  pricing: {
+    costPrice: string
+    salePrice: string
+  }
+  inventory: {
+    stock: number
+    minStock: number
+    stockStatus: ProductStockStatus
+  }
+  flags: {
+    isActive: boolean
+    isForSale: boolean
+  }
+  updatedAt: string
+}
+
+export type ProductListResponse = {
+  items: ProductListItemDto[]
+  pageInfo: {
+    nextCursor: string | null
+    hasMore: boolean
+    pageSize: number
+  }
+  appliedFilters: Omit<ProductCatalogFilters, "cursor" | "limit"> & {
+    search: string | null
+    supplierId: string | null
+    category: string | null
+    brand: string | null
+    stockStatus: ProductStockStatus | null
+  }
+}
+
+export type ProductCatalogKpisResponse = {
+  totalProducts: number
+  activeProducts: number
+  lowStockProducts: number
+  outOfStockProducts: number
+}
+
+export type ProductCatalogSupplierOption = {
+  id: string
+  name: string
+}
+
+export type ProductStockMovementDto = {
+  id: string
+  type: string
+  quantityDelta: number
+  previousStock: number | null
+  nextStock: number | null
+  notes: string | null
+  createdAt: string
+  createdBy: {
+    id: string
+    name: string | null
+    email: string | null
+  } | null
+}
+
+export type ProductDetailDto = {
+  id: string
+  name: string
+  supplierProductCode: string
+  description: string | null
+  brand: string | null
+  categoryCode: string | null
+  categoryName: string | null
+  barcode: string | null
+  supplier: {
+    id: string
+    name: string
+  }
+  currentPriceList: {
+    id: string
+    name: string
+    sourceType: string
+    status: string
+  } | null
+  pricing: {
+    costPrice: string
+    salePrice: string
+  }
+  inventory: {
+    stock: number
+    minStock: number
+    stockStatus: ProductStockStatus
+  }
+  flags: {
+    isActive: boolean
+    isForSale: boolean
+  }
+  salesSummary: {
+    lastSaleAt: string | null
+    totalUnitsSold: number
+  }
+  stockMovements: ProductStockMovementDto[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type ProductDetailResponse = {
+  product: ProductDetailDto
+}
