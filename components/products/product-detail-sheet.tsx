@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
 type ProductDetailSheetProps = {
@@ -223,7 +224,7 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full max-w-2xl flex-col overflow-y-auto">
+      <SheetContent side="right" className="flex w-full max-w-[94vw] flex-col overflow-y-auto md:max-w-[78vw] xl:max-w-[58vw] 2xl:max-w-[52vw]">
         <SheetHeader>
           <SheetTitle>Detalle del producto</SheetTitle>
           <SheetDescription>
@@ -274,200 +275,214 @@ export function ProductDetailSheet({ productId, open, onOpenChange, onProductCha
               </div>
             </section>
 
-            <section className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-foreground">Acciones rápidas</p>
-                  <p className="text-sm text-muted-foreground">Opera sobre el producto sin abandonar el catálogo.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isSaving}
-                    onClick={() => void handlePatch({ isActive: !detail.flags.isActive }, detail.flags.isActive ? "Producto desactivado" : "Producto activado")}
-                  >
-                    <ShieldBan className="size-4" />
-                    {detail.flags.isActive ? "Desactivar" : "Activar"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isSaving}
-                    onClick={() => void handlePatch({ isForSale: !detail.flags.isForSale }, detail.flags.isForSale ? "Producto fuera de venta" : "Producto habilitado para venta")}
-                  >
-                    <ShoppingBag className="size-4" />
-                    {detail.flags.isForSale ? "Sacar de venta" : "Habilitar venta"}
-                  </Button>
-                </div>
-              </div>
+            <Tabs defaultValue="summary" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="summary">Resumen</TabsTrigger>
+                <TabsTrigger value="inventory">Inventario</TabsTrigger>
+                <TabsTrigger value="edit">Edición</TabsTrigger>
+              </TabsList>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="product-name-edit">Nombre</Label>
-                  <Input id="product-name-edit" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-brand-edit">Marca</Label>
-                  <Input id="product-brand-edit" value={draft.brand} onChange={(event) => setDraft((current) => ({ ...current, brand: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-category-edit">Categoría</Label>
-                  <Input id="product-category-edit" value={draft.categoryName} onChange={(event) => setDraft((current) => ({ ...current, categoryName: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-barcode-edit">Código de barras</Label>
-                  <Input id="product-barcode-edit" value={draft.barcode} onChange={(event) => setDraft((current) => ({ ...current, barcode: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-sale-price-edit">Precio de venta</Label>
-                  <Input id="product-sale-price-edit" type="number" min="0" step="0.01" value={draft.salePrice} onChange={(event) => setDraft((current) => ({ ...current, salePrice: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-cost-price-edit">Precio de costo</Label>
-                  <Input id="product-cost-price-edit" type="number" min="0" step="0.01" value={draft.costPrice} onChange={(event) => setDraft((current) => ({ ...current, costPrice: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-min-stock-edit">Stock mínimo</Label>
-                  <Input id="product-min-stock-edit" type="number" min="0" step="1" value={draft.minStock} onChange={(event) => setDraft((current) => ({ ...current, minStock: event.target.value }))} />
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-end">
-                <Button type="button" disabled={!isDirty || isSaving} onClick={() => void handleSaveDetails()}>
-                  {isSaving ? <Loader2 className="size-4 animate-spin" /> : <PencilLine className="size-4" />}
-                  Guardar cambios
-                </Button>
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <ReceiptText className="size-4 text-primary" />
-                  <p className="font-medium text-foreground">Comercial</p>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Precio venta</span>
-                    <span className="font-medium">{formatCurrency(detail.pricing.salePrice)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Precio costo</span>
-                    <span className="font-medium">{formatCurrency(detail.pricing.costPrice)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Última venta</span>
-                    <span className="text-right font-medium">{formatDateTime(detail.salesSummary.lastSaleAt)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Total vendido</span>
-                    <span className="font-medium">{detail.salesSummary.totalUnitsSold}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Lista vigente</span>
-                    <span className="text-right font-medium">{detail.currentPriceList?.name ?? "Sin lista vigente"}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <Warehouse className="size-4 text-primary" />
-                  <p className="font-medium text-foreground">Inventario</p>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Stock actual</span>
-                    <span className="font-medium">{detail.inventory.stock}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Stock mínimo</span>
-                    <span className="font-medium">{detail.inventory.minStock}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Estado</span>
-                    <Badge variant="outline">
-                      {detail.inventory.stockStatus === "sin_stock" ? <CircleOff className="size-3.5" /> : null}
-                      {detail.inventory.stockStatus === "stock_bajo" ? <AlertTriangle className="size-3.5" /> : null}
-                      {detail.inventory.stockStatus === "sin_stock"
-                        ? "Sin stock"
-                        : detail.inventory.stockStatus === "stock_bajo"
-                          ? "Stock bajo"
-                          : "Stock normal"}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Creado</span>
-                    <span className="font-medium">{formatDate(detail.createdAt)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Actualizado</span>
-                    <span className="font-medium">{formatDate(detail.updatedAt)}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-foreground">Movimientos de stock</p>
-                  <p className="text-sm text-muted-foreground">Últimos 20 movimientos registrados.</p>
-                </div>
-                {isLoading ? <Loader2 className="size-4 animate-spin" /> : null}
-              </div>
-
-              <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-                  <div className="space-y-2 lg:min-w-44">
-                    <Label htmlFor="product-stock-adjustment">Ajuste manual de stock</Label>
-                    <Input id="product-stock-adjustment" type="number" min="0" step="1" value={draft.nextStock} onChange={(event) => setDraft((current) => ({ ...current, nextStock: event.target.value }))} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="product-stock-notes">Nota del ajuste (opcional)</Label>
-                    <Textarea
-                      id="product-stock-notes"
-                      value={draft.stockNotes}
-                      onChange={(event) => setDraft((current) => ({ ...current, stockNotes: event.target.value }))}
-                      placeholder="Ej. corrección por conteo manual"
-                      className="min-h-10 resize-none"
-                    />
-                  </div>
-                  <Button type="button" disabled={isSaving || Number(draft.nextStock) === detail.inventory.stock} onClick={() => void handleStockAdjustment()}>
-                    {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Warehouse className="size-4" />}
-                    Ajustar stock
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {detail.stockMovements.length > 0 ? (
-                  detail.stockMovements.map((movement) => (
-                    <div key={movement.id} className="rounded-xl border border-border/60 bg-muted/10 p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="font-medium text-foreground">{movement.type.replaceAll("_", " ")}</p>
-                          <p className="text-xs text-muted-foreground">{formatDateTime(movement.createdAt)}</p>
-                        </div>
-                        <Badge variant="outline">{movement.quantityDelta > 0 ? `+${movement.quantityDelta}` : movement.quantityDelta}</Badge>
+              <TabsContent value="summary" className="space-y-4">
+                <section className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <ReceiptText className="size-4 text-primary" />
+                      <p className="font-medium text-foreground">Comercial</p>
+                    </div>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Precio venta</span>
+                        <span className="font-medium">{formatCurrency(detail.pricing.salePrice)}</span>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        <span>Anterior: {movement.previousStock ?? "-"}</span>
-                        <span>Nuevo: {movement.nextStock ?? "-"}</span>
-                        <span>Usuario: {movement.createdBy?.name ?? movement.createdBy?.email ?? "Sistema"}</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Precio costo</span>
+                        <span className="font-medium">{formatCurrency(detail.pricing.costPrice)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Última venta</span>
+                        <span className="text-right font-medium">{formatDateTime(detail.salesSummary.lastSaleAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Total vendido</span>
+                        <span className="font-medium">{detail.salesSummary.totalUnitsSold}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Lista vigente</span>
+                        <span className="text-right font-medium">{detail.currentPriceList?.name ?? "Sin lista vigente"}</span>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
-                    Todavía no hay movimientos de stock registrados para este producto.
                   </div>
-                )}
-              </div>
-            </section>
+
+                  <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Warehouse className="size-4 text-primary" />
+                      <p className="font-medium text-foreground">Estado general</p>
+                    </div>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Stock actual</span>
+                        <span className="font-medium">{detail.inventory.stock}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Stock mínimo</span>
+                        <span className="font-medium">{detail.inventory.minStock}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Estado</span>
+                        <Badge variant="outline">
+                          {detail.inventory.stockStatus === "sin_stock" ? <CircleOff className="size-3.5" /> : null}
+                          {detail.inventory.stockStatus === "stock_bajo" ? <AlertTriangle className="size-3.5" /> : null}
+                          {detail.inventory.stockStatus === "sin_stock"
+                            ? "Sin stock"
+                            : detail.inventory.stockStatus === "stock_bajo"
+                              ? "Stock bajo"
+                              : "Stock normal"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Creado</span>
+                        <span className="font-medium">{formatDate(detail.createdAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Actualizado</span>
+                        <span className="font-medium">{formatDate(detail.updatedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </TabsContent>
+
+              <TabsContent value="inventory" className="space-y-4">
+                <section className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">Movimientos de stock</p>
+                      <p className="text-sm text-muted-foreground">Últimos 20 movimientos registrados.</p>
+                    </div>
+                    {isLoading ? <Loader2 className="size-4 animate-spin" /> : null}
+                  </div>
+
+                  <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                      <div className="space-y-2 lg:min-w-44">
+                        <Label htmlFor="product-stock-adjustment">Ajuste manual de stock</Label>
+                        <Input id="product-stock-adjustment" type="number" min="0" step="1" value={draft.nextStock} onChange={(event) => setDraft((current) => ({ ...current, nextStock: event.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="product-stock-notes">Nota del ajuste (opcional)</Label>
+                        <Textarea
+                          id="product-stock-notes"
+                          value={draft.stockNotes}
+                          onChange={(event) => setDraft((current) => ({ ...current, stockNotes: event.target.value }))}
+                          placeholder="Ej. corrección por conteo manual"
+                          className="min-h-10 resize-none"
+                        />
+                      </div>
+                      <Button type="button" disabled={isSaving || Number(draft.nextStock) === detail.inventory.stock} onClick={() => void handleStockAdjustment()}>
+                        {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Warehouse className="size-4" />}
+                        Ajustar stock
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {detail.stockMovements.length > 0 ? (
+                      detail.stockMovements.map((movement) => (
+                        <div key={movement.id} className="rounded-xl border border-border/60 bg-muted/10 p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">{movement.type.replaceAll("_", " ")}</p>
+                              <p className="text-xs text-muted-foreground">{formatDateTime(movement.createdAt)}</p>
+                            </div>
+                            <Badge variant="outline">{movement.quantityDelta > 0 ? `+${movement.quantityDelta}` : movement.quantityDelta}</Badge>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                            <span>Anterior: {movement.previousStock ?? "-"}</span>
+                            <span>Nuevo: {movement.nextStock ?? "-"}</span>
+                            <span>Usuario: {movement.createdBy?.name ?? movement.createdBy?.email ?? "Sistema"}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                        Todavía no hay movimientos de stock registrados para este producto.
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </TabsContent>
+
+              <TabsContent value="edit" className="space-y-4">
+                <section className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">Acciones rápidas</p>
+                      <p className="text-sm text-muted-foreground">Opera sobre el producto sin abandonar el catálogo.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => void handlePatch({ isActive: !detail.flags.isActive }, detail.flags.isActive ? "Producto desactivado" : "Producto activado")}
+                      >
+                        <ShieldBan className="size-4" />
+                        {detail.flags.isActive ? "Desactivar" : "Activar"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isSaving}
+                        onClick={() => void handlePatch({ isForSale: !detail.flags.isForSale }, detail.flags.isForSale ? "Producto fuera de venta" : "Producto habilitado para venta")}
+                      >
+                        <ShoppingBag className="size-4" />
+                        {detail.flags.isForSale ? "Sacar de venta" : "Habilitar venta"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="product-name-edit">Nombre</Label>
+                      <Input id="product-name-edit" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-brand-edit">Marca</Label>
+                      <Input id="product-brand-edit" value={draft.brand} onChange={(event) => setDraft((current) => ({ ...current, brand: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-category-edit">Categoría</Label>
+                      <Input id="product-category-edit" value={draft.categoryName} onChange={(event) => setDraft((current) => ({ ...current, categoryName: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-barcode-edit">Código de barras</Label>
+                      <Input id="product-barcode-edit" value={draft.barcode} onChange={(event) => setDraft((current) => ({ ...current, barcode: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-sale-price-edit">Precio de venta</Label>
+                      <Input id="product-sale-price-edit" type="number" min="0" step="0.01" value={draft.salePrice} onChange={(event) => setDraft((current) => ({ ...current, salePrice: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-cost-price-edit">Precio de costo</Label>
+                      <Input id="product-cost-price-edit" type="number" min="0" step="0.01" value={draft.costPrice} onChange={(event) => setDraft((current) => ({ ...current, costPrice: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-min-stock-edit">Stock mínimo</Label>
+                      <Input id="product-min-stock-edit" type="number" min="0" step="1" value={draft.minStock} onChange={(event) => setDraft((current) => ({ ...current, minStock: event.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <Button type="button" disabled={!isDirty || isSaving} onClick={() => void handleSaveDetails()}>
+                      {isSaving ? <Loader2 className="size-4 animate-spin" /> : <PencilLine className="size-4" />}
+                      Guardar cambios
+                    </Button>
+                  </div>
+                </section>
+              </TabsContent>
+            </Tabs>
 
             <div className="flex justify-end">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

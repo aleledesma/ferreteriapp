@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
-import { Funnel, Search, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { CheckCheck, Funnel, Loader2, Search, Sparkles, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -15,6 +15,7 @@ import type {
   ProductSortOption,
   ProductStockStatus,
 } from "@/lib/products/catalog-types"
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value"
 
 import { ProductDetailSheet } from "@/components/products/product-detail-sheet"
 import { DeactivateProductsDialog } from "@/components/products/deactivate-products-dialog"
@@ -101,8 +102,12 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false)
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const hasMountedRef = useRef(false)
 
   const activeProductId = searchParams.get("product")
+  const debouncedSearch = useDebouncedValue(filters.search, 250)
+  const debouncedCategory = useDebouncedValue(filters.category, 250)
+  const debouncedBrand = useDebouncedValue(filters.brand, 250)
 
   const activeFilterCount = useMemo(() => {
     return [
@@ -117,20 +122,53 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
     ].filter(Boolean).length
   }, [filters])
 
-  function buildBaseParams() {
+  const defaultFilters = useMemo(
+    () => ({
+      search: "",
+      supplierId: "all",
+      category: "",
+      brand: "",
+      stockStatus: "all",
+      activityStatus: "active" as ProductActivityStatusFilter,
+      saleStatus: "all" as ProductSaleStatusFilter,
+      sort: "critical_stock" as ProductSortOption,
+    }),
+    [],
+  )
+
+  const selectedVisibleCount = useMemo(
+    () => catalog.items.filter((item) => selectedIds.includes(item.id)).length,
+    [catalog.items, selectedIds],
+  )
+
+  const effectiveFilters = useMemo(
+    () => ({
+      ...filters,
+      search: debouncedSearch,
+      category: debouncedCategory,
+      brand: debouncedBrand,
+    }),
+    [filters, debouncedBrand, debouncedCategory, debouncedSearch],
+  )
+
+  const buildParamsFromFilters = useCallback((nextFilters: typeof filters) => {
     const params = new URLSearchParams()
 
-    if (filters.search.trim()) params.set("search", filters.search.trim())
-    if (filters.supplierId !== "all") params.set("supplierId", filters.supplierId)
-    if (filters.category.trim()) params.set("category", filters.category.trim())
-    if (filters.brand.trim()) params.set("brand", filters.brand.trim())
-    if (filters.stockStatus !== "all") params.set("stockStatus", filters.stockStatus)
-    if (filters.activityStatus !== "active") params.set("activityStatus", filters.activityStatus)
-    if (filters.saleStatus !== "all") params.set("saleStatus", filters.saleStatus)
-    if (filters.sort !== "critical_stock") params.set("sort", filters.sort)
+    if (nextFilters.search.trim()) params.set("search", nextFilters.search.trim())
+    if (nextFilters.supplierId !== "all") params.set("supplierId", nextFilters.supplierId)
+    if (nextFilters.category.trim()) params.set("category", nextFilters.category.trim())
+    if (nextFilters.brand.trim()) params.set("brand", nextFilters.brand.trim())
+    if (nextFilters.stockStatus !== "all") params.set("stockStatus", nextFilters.stockStatus)
+    if (nextFilters.activityStatus !== "active") params.set("activityStatus", nextFilters.activityStatus)
+    if (nextFilters.saleStatus !== "all") params.set("saleStatus", nextFilters.saleStatus)
+    if (nextFilters.sort !== "critical_stock") params.set("sort", nextFilters.sort)
     params.set("limit", "100")
 
     return params
+  }, [])
+
+  function buildBaseParams() {
+    return buildParamsFromFilters(effectiveFilters)
   }
 
   function buildRouteParams(productId: string | null) {
@@ -149,22 +187,6 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
     const next = buildRouteParams(productId)
 
     router.replace(`/products?${next.toString()}`, { scroll: false })
-  }
-
-  function applyFilters() {
-    startTransition(async () => {
-      try {
-        const params = buildBaseParams()
-        const nextCatalog = await fetchCatalog(params)
-        setCatalog(nextCatalog)
-        setSelectedIds([])
-        router.replace(`/products?${buildRouteParams(activeProductId).toString()}`, { scroll: false })
-      } catch (error) {
-        toast.error("No se pudo actualizar el catálogo", {
-          description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
-        })
-      }
-    })
   }
 
   async function handleLoadMore() {
@@ -192,16 +214,12 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   }
 
   function resetFilters() {
-    setFilters({
-      search: "",
-      supplierId: "all",
-      category: "",
-      brand: "",
-      stockStatus: "all",
-      activityStatus: "active",
-      saleStatus: "all",
-      sort: "critical_stock",
-    })
+    setFilters(defaultFilters)
+    setSelectedIds([])
+  }
+
+  function clearSelection() {
+    setSelectedIds([])
   }
 
   function toggleSelection(productId: string, checked: boolean) {
@@ -271,6 +289,33 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       setIsDeactivating(false)
     }
   }
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const params = buildParamsFromFilters(effectiveFilters)
+        const nextCatalog = await fetchCatalog(params)
+        setCatalog(nextCatalog)
+        setSelectedIds([])
+
+        const nextRouteParams = buildParamsFromFilters(effectiveFilters)
+        if (activeProductId) {
+          nextRouteParams.set("product", activeProductId)
+        }
+
+        router.replace(`/products?${nextRouteParams.toString()}`, { scroll: false })
+      } catch (error) {
+        toast.error("No se pudo actualizar el catálogo", {
+          description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+        })
+      }
+    })
+  }, [activeProductId, buildParamsFromFilters, effectiveFilters, router, startTransition])
 
   return (
     <div className="space-y-6">
@@ -403,21 +448,50 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 <Button type="button" variant="outline" disabled={selectedIds.length === 0} onClick={() => setIsDeactivateDialogOpen(true)}>
                   Desactivar seleccionados
                 </Button>
-                <Button type="button" variant="outline" onClick={resetFilters}>
+                <Button type="button" variant="outline" disabled={activeFilterCount === 0 && selectedIds.length === 0} onClick={resetFilters}>
                   <X className="size-4" />
-                  Limpiar
-                </Button>
-                <Button type="button" onClick={applyFilters} disabled={isPending}>
-                  {isPending ? "Actualizando..." : "Aplicar filtros"}
+                  Limpiar vista
                 </Button>
               </div>
             </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
+                <Sparkles className="size-3.5" />
+                Los filtros se aplican automáticamente
+              </span>
+              {isPending ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-primary">
+                  <Loader2 className="size-3 animate-spin" />
+                  Actualizando catálogo…
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div aria-live="polite" className="sr-only">
+            {catalog.items.length} productos visibles. {selectedIds.length} productos seleccionados.
           </div>
 
           {isPending ? (
             <ProductsTableSkeleton />
           ) : catalog.items.length > 0 ? (
             <>
+              {selectedIds.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-foreground">
+                    <CheckCheck className="size-4 text-primary" />
+                    <span>
+                      {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
+                      {selectedVisibleCount !== selectedIds.length ? ` · ${selectedVisibleCount} visible${selectedVisibleCount === 1 ? "" : "s"} en esta carga` : ""}
+                    </span>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>
+                    Limpiar selección
+                  </Button>
+                </div>
+              ) : null}
+
               <ProductsTable
                 items={catalog.items}
                 activeProductId={activeProductId}
@@ -429,16 +503,31 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
 
               <div className="flex justify-center pt-2">
                 <Button type="button" variant="outline" onClick={() => void handleLoadMore()} disabled={!catalog.pageInfo.hasMore || isLoadingMore}>
-                  {isLoadingMore ? "Cargando más..." : catalog.pageInfo.hasMore ? "Cargar más" : "No hay más productos"}
+                  {isLoadingMore ? <Loader2 className="size-4 animate-spin" /> : null}
+                  {isLoadingMore ? "Cargando más..." : catalog.pageInfo.hasMore ? `Cargar 100 más` : "No hay más productos"}
                 </Button>
               </div>
+              <p className="text-center text-xs text-muted-foreground">
+                Se muestran lotes de hasta 100 productos por carga para mantener el control operativo del catálogo.
+              </p>
             </>
           ) : (
             <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-6 py-14 text-center">
-              <p className="text-lg font-medium text-foreground">No hay productos para mostrar</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Ajusta los filtros o carga nuevos productos desde el flujo de incorporación.
+              <p className="text-lg font-medium text-foreground">
+                {activeFilterCount > 0 ? "No hay resultados para estos filtros" : "No hay productos para mostrar"}
               </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {activeFilterCount > 0
+                  ? "Prueba limpiando filtros o ajustando la búsqueda para ampliar el resultado."
+                  : "Carga nuevos productos desde el flujo de incorporación para comenzar a poblar el catálogo."}
+              </p>
+              {activeFilterCount > 0 ? (
+                <div className="mt-4 flex justify-center">
+                  <Button type="button" variant="outline" onClick={resetFilters}>
+                    Limpiar filtros y volver al catálogo
+                  </Button>
+                </div>
+              ) : null}
             </div>
           )}
         </CardContent>

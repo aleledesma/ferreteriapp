@@ -70,37 +70,45 @@
   - Nada pendiente en esta etapa.
 
 ### Stage 5 — Product detail modal
-- Estado: in_progress
+- Estado: completed
 - Avances:
   - Se implementó una primera versión del detalle en sheet con resumen comercial, inventario, resumen liviano de ventas e historial de movimientos.
   - Se agregaron acciones rápidas reales para activar/desactivar y habilitar/deshabilitar venta.
   - Se agregó edición básica de datos operativos desde el detalle.
   - Se agregó ajuste manual de stock con persistencia real y refresco de movimientos.
   - Se enriqueció el detalle con contexto de lista vigente, metadata temporal y nota opcional en ajustes de stock.
+  - Se reorganizó la UX del detalle en pestañas claras: Resumen, Inventario y Edición.
 - Falta:
-  - Refinar la organización interna del detalle y su UX.
+  - Nada pendiente en esta etapa.
 
 ### Stage 6 — Actions and operational workflows
-- Estado: in_progress
+- Estado: completed
 - Avances:
   - Se implementó desactivación lógica masiva de productos seleccionados.
   - Se implementaron endpoints para desactivación lógica, edición de producto y ajuste manual de stock.
   - Se agregó selección múltiple en el listado.
 - Falta:
-  - Completar acciones faltantes de operación avanzada si hicieran falta.
+  - Nada pendiente en esta etapa.
 
 ### Stage 7 — Polish, verification, and acceptance
-- Estado: pending
-- Avances: ninguno
+- Estado: in_progress
+- Avances:
+  - Se validó la implementación actual con `npm run lint` sin errores.
+  - Se auditó el alcance del MVP contra las decisiones aprobadas y se confirmó cobertura funcional de Stage 5 y Stage 6.
+  - Se mejoró el feedback de selección múltiple, los estados vacíos y el CTA de carga incremental del catálogo.
+  - Se agregaron ajustes de accesibilidad livianos como `aria-live` y microcopy más explícito para la carga/control del listado.
+  - Se implementaron filtros de aplicación automática con debounce en campos de texto.
+  - Se reforzó la tabla con un layout más robusto y una variante tipo cards para pantallas más chicas.
+  - Se amplió significativamente el detail sheet para aprovechar más pantalla en desktop.
 - Falta:
-  - Revisiones de UX, accesibilidad, estados, rendimiento y aceptación.
+  - Revisiones finales de UX, accesibilidad, estados, rendimiento y aceptación.
 
 ## Próximos pasos inmediatos
 
 1. Iniciar Stage 1.
-2. Refinar UX del detalle y de los filtros si fuera necesario.
-3. Revisar si Stage 5 y Stage 6 ya pueden cerrarse.
-4. Avanzar al pulido final.
+2. Ejecutar pulido final del catálogo y del detail sheet.
+3. Revisar accesibilidad, estados de error y rendimiento percibido.
+4. Cerrar Stage 7.
 
 ## Bloqueos actuales
 
