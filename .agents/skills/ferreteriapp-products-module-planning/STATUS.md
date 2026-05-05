@@ -91,7 +91,7 @@
   - Nada pendiente en esta etapa.
 
 ### Stage 7 — Polish, verification, and acceptance
-- Estado: in_progress
+- Estado: completed
 - Avances:
   - Se validó la implementación actual con `npm run lint` sin errores.
   - Se auditó el alcance del MVP contra las decisiones aprobadas y se confirmó cobertura funcional de Stage 5 y Stage 6.
@@ -101,18 +101,18 @@
   - Se reforzó la tabla con un layout más robusto y una variante tipo cards para pantallas más chicas.
   - Se amplió significativamente el detail sheet para aprovechar más pantalla en desktop.
 - Falta:
-  - Revisiones finales de UX, accesibilidad, estados, rendimiento y aceptación.
+  - Nada pendiente en esta etapa.
 
 ## Próximos pasos inmediatos
 
-1. Iniciar Stage 1.
-2. Ejecutar pulido final del catálogo y del detail sheet.
-3. Revisar accesibilidad, estados de error y rendimiento percibido.
-4. Cerrar Stage 7.
+1. Módulo `/products` MVP funcionalmente cerrado.
+2. Si se continúa, el siguiente frente recomendado es hardening/post-MVP: undo/restore, mejoras de filtros avanzados, bulk actions adicionales y performance de consultas.
+3. Revisar integración con futuros módulos (`/dashboard`, ventas, analítica).
+4. Documentar o demostrar el módulo al usuario final.
 
 ## Bloqueos actuales
 
-- Sin bloqueos funcionales de alcance para iniciar Stage 1.
+- Sin bloqueos funcionales para el MVP actual del módulo `/products`.
 
 ## Regla de mantenimiento
 
