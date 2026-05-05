@@ -302,20 +302,23 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
         const nextCatalog = await fetchCatalog(params)
         setCatalog(nextCatalog)
         setSelectedIds([])
-
-        const nextRouteParams = buildParamsFromFilters(effectiveFilters)
-        if (activeProductId) {
-          nextRouteParams.set("product", activeProductId)
-        }
-
-        router.replace(`/products?${nextRouteParams.toString()}`, { scroll: false })
       } catch (error) {
         toast.error("No se pudo actualizar el catálogo", {
           description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
         })
       }
     })
-  }, [activeProductId, buildParamsFromFilters, effectiveFilters, router, startTransition])
+  }, [buildParamsFromFilters, effectiveFilters, startTransition])
+
+  useEffect(() => {
+    const nextRouteParams = buildParamsFromFilters(effectiveFilters)
+
+    if (activeProductId) {
+      nextRouteParams.set("product", activeProductId)
+    }
+
+    router.replace(`/products?${nextRouteParams.toString()}`, { scroll: false })
+  }, [activeProductId, buildParamsFromFilters, effectiveFilters, router])
 
   return (
     <div className="space-y-6">
