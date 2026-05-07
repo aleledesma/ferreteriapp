@@ -1,8 +1,7 @@
 import { AlertTriangle, Boxes, CircleOff, PackageCheck } from "lucide-react"
 
 import type { ProductCatalogKpisResponse } from "@/lib/products/catalog-types"
-
-import { Card, CardContent } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 
 type ProductsKpiStripProps = {
   kpis: ProductCatalogKpisResponse
@@ -10,29 +9,39 @@ type ProductsKpiStripProps = {
 
 const KPI_ITEMS = [
   {
-    key: "totalProducts",
+    key: "totalProducts" as const,
     label: "Total catálogo",
     icon: Boxes,
+    borderClass: "border-l-foreground/30",
+    numberClass: "text-foreground",
   },
   {
-    key: "activeProducts",
+    key: "activeProducts" as const,
     label: "Activos",
     icon: PackageCheck,
+    borderClass: "border-l-emerald-500",
+    numberClass: "text-emerald-700",
   },
   {
-    key: "lowStockProducts",
+    key: "lowStockProducts" as const,
     label: "Stock bajo",
     icon: AlertTriangle,
+    borderClass: "border-l-amber-500",
+    numberClass: "text-amber-700",
   },
   {
-    key: "outOfStockProducts",
+    key: "outOfStockProducts" as const,
     label: "Sin stock",
     icon: CircleOff,
+    borderClass: "border-l-destructive",
+    numberClass: "text-destructive",
   },
-] as const satisfies ReadonlyArray<{
+] satisfies ReadonlyArray<{
   key: keyof ProductCatalogKpisResponse
   label: string
   icon: typeof Boxes
+  borderClass: string
+  numberClass: string
 }>
 
 export function ProductsKpiStrip({ kpis }: ProductsKpiStripProps) {
@@ -42,23 +51,23 @@ export function ProductsKpiStrip({ kpis }: ProductsKpiStripProps) {
         const Icon = item.icon
 
         return (
-          <Card
+          <div
             key={item.key}
-            className="border-border/50 bg-background/70 shadow-sm backdrop-blur animate-in fade-in-0 slide-in-from-top-1 duration-500"
-            style={{ animationDelay: `${index * 60}ms` }}
+            className={cn(
+              "rounded-xl border border-border/60 border-l-[3px] bg-background/90 px-5 py-4 shadow-sm backdrop-blur-sm",
+              "animate-in fade-in-0 slide-in-from-bottom-1 duration-500",
+              item.borderClass,
+            )}
+            style={{ animationDelay: `${index * 80}ms` }}
           >
-            <CardContent className="flex items-center justify-between gap-4 px-4 py-3">
-              <div className="space-y-1">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {item.label}
-                </p>
-                <p className="text-xl font-semibold text-foreground">{kpis[item.key]}</p>
-              </div>
-              <div className="flex size-10 items-center justify-center rounded-2xl border border-border/60 bg-muted/35 text-muted-foreground shadow-inner">
-                <Icon className="size-4" />
-              </div>
-            </CardContent>
-          </Card>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <Icon className="size-3.5 shrink-0" />
+              {item.label}
+            </div>
+            <p className={cn("mt-2 text-[2rem] font-bold tabular-nums leading-none tracking-tight", item.numberClass)}>
+              {kpis[item.key]}
+            </p>
+          </div>
         )
       })}
     </div>

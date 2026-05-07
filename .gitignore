@@ -45,3 +45,4 @@ next-env.d.ts
 skills-lock.json
 /lib/generated/prisma
 /.atl/
+/.claude/
