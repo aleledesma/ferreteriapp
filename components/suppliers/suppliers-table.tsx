@@ -1,8 +1,8 @@
 import { PencilLine, RotateCcw, Trash2 } from "lucide-react"
 
 import type { SupplierListItem } from "@/lib/suppliers/types"
+import { cn } from "@/lib/utils"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -28,16 +28,28 @@ function formatDate(value: string) {
 
 export function SuppliersTable({ items, onEdit, onDelete, onReactivate }: SuppliersTableProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-border/60 bg-background/85 shadow-sm">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="px-4 py-4">Proveedor</TableHead>
-            <TableHead className="px-4 py-4">Contacto</TableHead>
-            <TableHead className="px-4 py-4">Estado</TableHead>
-            <TableHead className="px-4 py-4">En uso</TableHead>
-            <TableHead className="px-4 py-4">Creado</TableHead>
-            <TableHead className="px-4 py-4 text-right">Acciones</TableHead>
+          <TableRow className="border-b border-border/60 bg-muted/20 hover:bg-muted/20">
+            <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Proveedor
+            </TableHead>
+            <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Contacto
+            </TableHead>
+            <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Estado
+            </TableHead>
+            <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              En uso
+            </TableHead>
+            <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Creado
+            </TableHead>
+            <TableHead className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Acciones
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -45,48 +57,75 @@ export function SuppliersTable({ items, onEdit, onDelete, onReactivate }: Suppli
             const usageCount = supplier.relatedPriceListsCount + supplier.relatedProductsCount
 
             return (
-              <TableRow key={supplier.id} className="transition-colors hover:bg-muted/30">
-                <TableCell className="max-w-[280px] px-4 py-4 align-top lg:max-w-[340px]">
-                  <div className="space-y-1 min-w-0">
+              <TableRow key={supplier.id} className="transition-colors hover:bg-muted/25">
+                <TableCell className="max-w-[280px] px-4 py-4 align-middle lg:max-w-[340px]">
+                  <div className="min-w-0 space-y-0.5">
                     <p className="font-medium text-foreground">{supplier.name}</p>
+                    {supplier.address ? (
+                      <p
+                        className="line-clamp-1 break-words text-xs text-muted-foreground"
+                        title={supplier.address}
+                      >
+                        {supplier.address}
+                      </p>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[220px] px-4 py-4 align-middle">
+                  <div className="min-w-0 space-y-0.5 text-sm">
+                    <p className="truncate text-foreground" title={supplier.email ?? undefined}>
+                      {supplier.email ?? <span className="text-muted-foreground/50">—</span>}
+                    </p>
                     <p
-                      className="line-clamp-2 break-words text-sm text-muted-foreground"
-                      title={supplier.address ?? "Sin dirección"}
+                      className="truncate text-xs text-muted-foreground"
+                      title={supplier.phone ?? undefined}
                     >
-                      {supplier.address ?? "Sin dirección"}
+                      {supplier.phone ?? <span className="text-muted-foreground/40">—</span>}
                     </p>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-[240px] px-4 py-4 align-top lg:max-w-[280px]">
-                  <div className="min-w-0 space-y-1 text-sm">
-                    <p className="truncate" title={supplier.email ?? "Sin correo"}>
-                      {supplier.email ?? "Sin correo"}
-                    </p>
-                    <p className="truncate text-muted-foreground" title={supplier.phone ?? "Sin teléfono"}>
-                      {supplier.phone ?? "Sin teléfono"}
-                    </p>
+                <TableCell className="px-4 py-4 align-middle">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "inline-block size-1.5 rounded-full",
+                        supplier.isActive ? "bg-emerald-500" : "bg-muted-foreground/40",
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-sm",
+                        supplier.isActive ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {supplier.isActive ? "Activo" : "Inactivo"}
+                    </span>
                   </div>
                 </TableCell>
-                <TableCell className="px-4 py-4 align-top">
-                  <Badge variant={supplier.isActive ? "secondary" : "outline"}>
-                    {supplier.isActive ? "Activo" : "Inactivo"}
-                  </Badge>
+                <TableCell className="px-4 py-4 align-middle">
+                  {usageCount === 0 ? (
+                    <span className="text-xs text-muted-foreground/50">Sin relaciones</span>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      <span>{supplier.relatedPriceListsCount} lista{supplier.relatedPriceListsCount !== 1 ? "s" : ""}</span>
+                      <span className="mx-1.5 text-muted-foreground/40">·</span>
+                      <span>{supplier.relatedProductsCount} producto{supplier.relatedProductsCount !== 1 ? "s" : ""}</span>
+                    </div>
+                  )}
                 </TableCell>
-                <TableCell className="px-4 py-4 align-top">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">Listas: {supplier.relatedPriceListsCount}</Badge>
-                    <Badge variant="outline">Productos: {supplier.relatedProductsCount}</Badge>
-                    {usageCount === 0 ? <Badge variant="outline">Libre</Badge> : null}
-                  </div>
-                </TableCell>
-                <TableCell className="px-4 py-4 align-top text-sm text-muted-foreground">
+                <TableCell className="px-4 py-4 align-middle text-sm text-muted-foreground">
                   {formatDate(supplier.createdAt)}
                 </TableCell>
-                <TableCell className="px-4 py-4 align-top text-right">
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                <TableCell className="px-4 py-4 align-middle text-right">
+                  <div className="flex items-center justify-end gap-2">
                     {supplier.isActive ? (
                       <>
-                        <Button type="button" variant="outline" size="sm" onClick={() => onEdit(supplier)}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onEdit(supplier)}
+                        >
                           <PencilLine className="size-4" />
                           Editar
                         </Button>

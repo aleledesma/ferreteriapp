@@ -13,8 +13,6 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetFooter,
-  SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
@@ -40,6 +38,14 @@ const EMPTY_VALUES: SupplierFormValues = {
   phone: "",
   address: "",
   notes: "",
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
+      {children}
+    </p>
+  )
 }
 
 export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: SupplierFormSheetProps) {
@@ -75,13 +81,14 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
     )
 
     try {
-      const response = await fetch(mode === "create" ? "/api/suppliers" : `/api/suppliers/${supplier?.id}`, {
-        method: mode === "create" ? "POST" : "PATCH",
-        headers: {
-          "content-type": "application/json",
+      const response = await fetch(
+        mode === "create" ? "/api/suppliers" : `/api/suppliers/${supplier?.id}`,
+        {
+          method: mode === "create" ? "POST" : "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(values),
         },
-        body: JSON.stringify(values),
-      })
+      )
 
       const payload = (await response.json()) as {
         error?: string
@@ -95,10 +102,13 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
       await onSaved(payload.supplier, mode)
       onOpenChange(false)
     } catch (error) {
-      toast.error(mode === "create" ? "No se pudo crear el proveedor" : "No se pudo actualizar el proveedor", {
-        id: toastId,
-        description: error instanceof Error ? error.message : "No se pudo guardar el proveedor.",
-      })
+      toast.error(
+        mode === "create" ? "No se pudo crear el proveedor" : "No se pudo actualizar el proveedor",
+        {
+          id: toastId,
+          description: error instanceof Error ? error.message : "No se pudo guardar el proveedor.",
+        },
+      )
       return
     } finally {
       setIsSubmitting(false)
@@ -109,78 +119,112 @@ export function SupplierFormSheet({ open, supplier, onOpenChange, onSaved }: Sup
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full max-w-2xl flex-col overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{mode === "create" ? "Nuevo proveedor" : "Editar proveedor"}</SheetTitle>
-          <SheetDescription>
-            Completa los datos principales del proveedor. Los cambios se guardan sin salir del listado.
+      <SheetContent side="right" className="flex w-full max-w-lg flex-col overflow-hidden p-0 sm:max-w-xl">
+        {/* Sticky header */}
+        <div className="shrink-0 border-b border-border/50 px-6 py-5">
+          <SheetTitle className="text-lg font-semibold">
+            {mode === "create" ? "Nuevo proveedor" : "Editar proveedor"}
+          </SheetTitle>
+          <SheetDescription className="mt-0.5 text-sm text-muted-foreground">
+            Completa los datos del proveedor. Los cambios se guardan sin salir del listado.
           </SheetDescription>
-        </SheetHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-6 px-6 py-4">
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="supplier-name">Nombre</Label>
-              <Input
-                id="supplier-name"
-                value={values.name}
-                onChange={(event) => updateField("name", event.target.value)}
-                placeholder="Ej. Ferretería Pepe"
-                required
-              />
+        <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto divide-y divide-border/40">
+            {/* Datos principales */}
+            <div className="px-6 py-5">
+              <SectionLabel>Datos principales</SectionLabel>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-name">Nombre</Label>
+                  <Input
+                    id="supplier-name"
+                    value={values.name}
+                    onChange={(event) => updateField("name", event.target.value)}
+                    placeholder="Ej. Ferretería Pepe"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-address">
+                    Dirección <span className="text-muted-foreground/60">(opc.)</span>
+                  </Label>
+                  <Input
+                    id="supplier-address"
+                    value={values.address}
+                    onChange={(event) => updateField("address", event.target.value)}
+                    placeholder="Dirección o ubicación principal"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="supplier-email">Correo</Label>
-              <Input
-                id="supplier-email"
-                type="email"
-                value={values.email}
-                onChange={(event) => updateField("email", event.target.value)}
-                placeholder="contacto@proveedor.com"
-              />
+            {/* Contacto */}
+            <div className="px-6 py-5">
+              <SectionLabel>Contacto</SectionLabel>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-email">
+                    Correo <span className="text-muted-foreground/60">(opc.)</span>
+                  </Label>
+                  <Input
+                    id="supplier-email"
+                    type="email"
+                    value={values.email}
+                    onChange={(event) => updateField("email", event.target.value)}
+                    placeholder="contacto@proveedor.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-phone">
+                    Teléfono <span className="text-muted-foreground/60">(opc.)</span>
+                  </Label>
+                  <Input
+                    id="supplier-phone"
+                    value={values.phone}
+                    onChange={(event) => updateField("phone", event.target.value)}
+                    placeholder="Ej. 11 5555-5555"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="supplier-phone">Teléfono</Label>
-              <Input
-                id="supplier-phone"
-                value={values.phone}
-                onChange={(event) => updateField("phone", event.target.value)}
-                placeholder="Ej. 11 5555-5555"
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="supplier-address">Dirección</Label>
-              <Input
-                id="supplier-address"
-                value={values.address}
-                onChange={(event) => updateField("address", event.target.value)}
-                placeholder="Dirección o ubicación principal"
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="supplier-notes">Notas</Label>
+            {/* Notas */}
+            <div className="px-6 py-5">
+              <SectionLabel>Notas internas</SectionLabel>
               <Textarea
                 id="supplier-notes"
                 value={values.notes}
                 onChange={(event) => updateField("notes", event.target.value)}
                 placeholder="Observaciones internas, condiciones comerciales, etc."
+                className="resize-none"
+                rows={4}
               />
             </div>
           </div>
 
-          <SheetFooter className="px-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {isSubmitting ? "Guardando..." : mode === "create" ? "Crear proveedor" : "Guardar cambios"}
-            </Button>
-          </SheetFooter>
+          {/* Sticky footer */}
+          <div className="shrink-0 border-t border-border/50 px-6 py-4">
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="min-w-36">
+                {isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Save className="size-4" />
+                )}
+                {isSubmitting
+                  ? "Guardando..."
+                  : mode === "create"
+                    ? "Crear proveedor"
+                    : "Guardar cambios"}
+              </Button>
+            </div>
+          </div>
         </form>
       </SheetContent>
     </Sheet>
