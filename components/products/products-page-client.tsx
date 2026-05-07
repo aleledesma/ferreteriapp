@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { CheckCheck, Funnel, Loader2, Search, Sparkles, X } from "lucide-react"
+import { CheckCheck, ChevronDown, ChevronUp, Loader2, Search, SlidersHorizontal, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -22,9 +22,7 @@ import { DeactivateProductsDialog } from "@/components/products/deactivate-produ
 import { ProductsKpiStrip } from "@/components/products/products-kpi-strip"
 import { ProductsTable } from "@/components/products/products-table"
 import { ProductsTableSkeleton } from "@/components/products/products-table-skeleton"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -102,6 +100,7 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false)
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
   const hasMountedRef = useRef(false)
 
   const activeProductId = searchParams.get("product")
@@ -321,104 +320,67 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   }, [activeProductId, buildParamsFromFilters, effectiveFilters, router])
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-primary/10 bg-background/85 shadow-lg shadow-primary/5 backdrop-blur animate-in fade-in-0 slide-in-from-top-2 duration-500">
-        <CardHeader className="gap-6 border-b border-border/50 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_8%,transparent),transparent_58%),linear-gradient(180deg,transparent,color-mix(in_oklab,var(--color-muted)_55%,transparent))]">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              <Funnel className="size-3.5" />
-              Catálogo operativo
-            </div>
-            <CardTitle className="text-3xl tracking-tight md:text-4xl">Productos</CardTitle>
-            <CardDescription className="max-w-3xl text-base leading-relaxed">
-              Supervisa el inventario real, prioriza faltantes y mantén a mano la información clave de cada producto sin salir del flujo del catálogo.
-            </CardDescription>
-          </div>
+    <div className="space-y-8 animate-in fade-in-0 slide-in-from-top-2 duration-500">
+      {/* Page header */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Inventario · Catálogo operativo
+        </p>
+        <h1 className="text-4xl font-bold leading-none tracking-tight text-foreground md:text-[2.75rem]">
+          Productos
+        </h1>
+        <p className="max-w-[46rem] pt-0.5 text-sm leading-relaxed text-muted-foreground">
+          Supervisá el inventario real, priorizá faltantes y mantené a mano la información clave de cada producto sin salir del flujo del catálogo.
+        </p>
+      </div>
 
-          <ProductsKpiStrip kpis={initialKpis} />
-        </CardHeader>
+      {/* KPI strip */}
+      <ProductsKpiStrip kpis={initialKpis} />
 
-        <CardContent className="space-y-5 p-5 md:p-6">
-          <div className="rounded-2xl border border-border/60 bg-muted/15 p-4 shadow-sm">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="relative xl:col-span-2">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Filter + table workspace */}
+      <div className="space-y-4">
+        {/* Filter bar */}
+        <div className="overflow-hidden rounded-xl border border-border/60 bg-background/80 shadow-sm backdrop-blur-sm">
+          <div className="p-4">
+            {/* Primary row */}
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={filters.search}
                   onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
-                  placeholder="Buscar por nombre, código, barra, marca o proveedor"
-                  className="pl-9"
+                  placeholder="Buscar por nombre, código, marca o proveedor…"
+                  className="h-9 pl-9"
                 />
               </div>
 
-              <Input
-                value={filters.category}
-                onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}
-                placeholder="Filtrar por categoría"
-              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 gap-2"
+                onClick={() => setFiltersExpanded((v) => !v)}
+              >
+                <SlidersHorizontal className="size-3.5" />
+                <span className="hidden sm:inline">Filtros</span>
+                {activeFilterCount > 0 ? (
+                  <span className="flex size-[18px] items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+                {filtersExpanded ? (
+                  <ChevronUp className="size-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                )}
+              </Button>
 
-              <Input
-                value={filters.brand}
-                onChange={(event) => setFilters((current) => ({ ...current, brand: event.target.value }))}
-                placeholder="Filtrar por marca"
-              />
-
-              <Select value={filters.supplierId} onValueChange={(value) => setFilters((current) => ({ ...current, supplierId: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Proveedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los proveedores</SelectItem>
-                  {supplierOptions.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filters.stockStatus} onValueChange={(value) => setFilters((current) => ({ ...current, stockStatus: value as ProductStockStatus | "all" }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Estado de stock" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STOCK_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filters.activityStatus} onValueChange={(value) => setFilters((current) => ({ ...current, activityStatus: value as ProductActivityStatusFilter }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Actividad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ACTIVITY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filters.saleStatus} onValueChange={(value) => setFilters((current) => ({ ...current, saleStatus: value as ProductSaleStatusFilter }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Venta" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SALE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filters.sort} onValueChange={(value) => setFilters((current) => ({ ...current, sort: value as ProductSortOption }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Ordenar" />
+              <Select
+                value={filters.sort}
+                onValueChange={(value) => setFilters((current) => ({ ...current, sort: value as ProductSortOption }))}
+              >
+                <SelectTrigger className="h-9 w-[200px] shrink-0 text-sm">
+                  <SelectValue placeholder="Ordenar por…" />
                 </SelectTrigger>
                 <SelectContent>
                   {SORT_OPTIONS.map((option) => (
@@ -428,113 +390,223 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="bg-background/80">
-                  {catalog.items.length} producto{catalog.items.length === 1 ? "" : "s"} cargado{catalog.items.length === 1 ? "" : "s"}
-                </Badge>
-                {selectedIds.length > 0 ? (
-                  <Badge variant="outline" className="bg-background/80">
-                    {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
-                  </Badge>
-                ) : null}
-                {activeFilterCount > 0 ? (
-                  <Badge variant="outline" className="bg-background/80">
-                    {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} activo{activeFilterCount === 1 ? "" : "s"}
-                  </Badge>
-                ) : null}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" disabled={selectedIds.length === 0} onClick={() => setIsDeactivateDialogOpen(true)}>
-                  Desactivar seleccionados
-                </Button>
-                <Button type="button" variant="outline" disabled={activeFilterCount === 0 && selectedIds.length === 0} onClick={resetFilters}>
+              {activeFilterCount > 0 || selectedIds.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 text-muted-foreground hover:text-foreground"
+                  aria-label="Limpiar filtros y selección"
+                  onClick={resetFilters}
+                >
                   <X className="size-4" />
-                  Limpiar vista
                 </Button>
-              </div>
+              ) : null}
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
-                <Sparkles className="size-3.5" />
-                Los filtros se aplican automáticamente
+            {/* Expandable filters */}
+            {filtersExpanded ? (
+              <div className="mt-4 grid gap-2.5 border-t border-border/50 pt-4 sm:grid-cols-2 xl:grid-cols-3">
+                <Select
+                  value={filters.supplierId}
+                  onValueChange={(value) => setFilters((current) => ({ ...current, supplierId: value }))}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Todos los proveedores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los proveedores</SelectItem>
+                    {supplierOptions.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  value={filters.category}
+                  onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}
+                  placeholder="Categoría"
+                  className="h-9 text-sm"
+                />
+
+                <Input
+                  value={filters.brand}
+                  onChange={(event) => setFilters((current) => ({ ...current, brand: event.target.value }))}
+                  placeholder="Marca"
+                  className="h-9 text-sm"
+                />
+
+                <Select
+                  value={filters.stockStatus}
+                  onValueChange={(value) =>
+                    setFilters((current) => ({ ...current, stockStatus: value as ProductStockStatus | "all" }))
+                  }
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Estado de stock" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STOCK_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.activityStatus}
+                  onValueChange={(value) =>
+                    setFilters((current) => ({ ...current, activityStatus: value as ProductActivityStatusFilter }))
+                  }
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Actividad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.saleStatus}
+                  onValueChange={(value) =>
+                    setFilters((current) => ({ ...current, saleStatus: value as ProductSaleStatusFilter }))
+                  }
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Venta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SALE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Status bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 bg-muted/10 px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>
+                <span className="font-semibold tabular-nums text-foreground">{catalog.items.length}</span>{" "}
+                producto{catalog.items.length !== 1 ? "s" : ""} cargado{catalog.items.length !== 1 ? "s" : ""}
               </span>
+              {selectedIds.length > 0 ? (
+                <span className="flex items-center gap-1.5">
+                  <CheckCheck className="size-3.5 text-primary" />
+                  <span className="font-semibold text-primary">
+                    {selectedIds.length} seleccionado{selectedIds.length !== 1 ? "s" : ""}
+                  </span>
+                  {selectedVisibleCount !== selectedIds.length ? (
+                    <span className="text-muted-foreground/70">
+                      · {selectedVisibleCount} visible{selectedVisibleCount !== 1 ? "s" : ""}
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
               {isPending ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-primary">
+                <span className="flex items-center gap-1">
                   <Loader2 className="size-3 animate-spin" />
-                  Actualizando catálogo…
+                  Actualizando…
                 </span>
               ) : null}
             </div>
-          </div>
 
-          <div aria-live="polite" className="sr-only">
-            {catalog.items.length} productos visibles. {selectedIds.length} productos seleccionados.
-          </div>
-
-          {isPending ? (
-            <ProductsTableSkeleton />
-          ) : catalog.items.length > 0 ? (
-            <>
-              {selectedIds.length > 0 ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm shadow-sm">
-                  <div className="flex flex-wrap items-center gap-2 text-foreground">
-                    <CheckCheck className="size-4 text-primary" />
-                    <span>
-                      {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
-                      {selectedVisibleCount !== selectedIds.length ? ` · ${selectedVisibleCount} visible${selectedVisibleCount === 1 ? "" : "s"} en esta carga` : ""}
-                    </span>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>
-                    Limpiar selección
-                  </Button>
-                </div>
-              ) : null}
-
-              <ProductsTable
-                items={catalog.items}
-                activeProductId={activeProductId}
-                onOpenDetail={syncProductQuery}
-                selectedIds={selectedIds}
-                onToggleSelection={toggleSelection}
-                onToggleAll={toggleAllVisible}
-              />
-
-              <div className="flex justify-center pt-2">
-                <Button type="button" variant="outline" onClick={() => void handleLoadMore()} disabled={!catalog.pageInfo.hasMore || isLoadingMore}>
-                  {isLoadingMore ? <Loader2 className="size-4 animate-spin" /> : null}
-                  {isLoadingMore ? "Cargando más..." : catalog.pageInfo.hasMore ? `Cargar 100 más` : "No hay más productos"}
+            {selectedIds.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={clearSelection}
+                >
+                  Limpiar selección
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setIsDeactivateDialogOpen(true)}
+                >
+                  Desactivar seleccionados
                 </Button>
               </div>
-              <p className="text-center text-xs text-muted-foreground">
-                Se muestran lotes de hasta 100 productos por carga para mantener el control operativo del catálogo.
+            ) : null}
+          </div>
+        </div>
+
+        {/* Accessibility live region */}
+        <div aria-live="polite" className="sr-only">
+          {catalog.items.length} productos visibles. {selectedIds.length} productos seleccionados.
+        </div>
+
+        {/* Table area */}
+        {isPending ? (
+          <ProductsTableSkeleton />
+        ) : catalog.items.length > 0 ? (
+          <>
+            <ProductsTable
+              items={catalog.items}
+              activeProductId={activeProductId}
+              onOpenDetail={syncProductQuery}
+              selectedIds={selectedIds}
+              onToggleSelection={toggleSelection}
+              onToggleAll={toggleAllVisible}
+            />
+
+            <div className="flex flex-col items-center gap-1.5 py-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-5"
+                onClick={() => void handleLoadMore()}
+                disabled={!catalog.pageInfo.hasMore || isLoadingMore}
+              >
+                {isLoadingMore ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {isLoadingMore
+                  ? "Cargando…"
+                  : catalog.pageInfo.hasMore
+                    ? "Ver 100 más"
+                    : "Todos los productos están cargados"}
+              </Button>
+              <p className="text-center text-[11px] text-muted-foreground/60">
+                Lotes de hasta 100 productos por carga
               </p>
-            </>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-6 py-14 text-center">
-              <p className="text-lg font-medium text-foreground">
-                {activeFilterCount > 0 ? "No hay resultados para estos filtros" : "No hay productos para mostrar"}
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {activeFilterCount > 0
-                  ? "Prueba limpiando filtros o ajustando la búsqueda para ampliar el resultado."
-                  : "Carga nuevos productos desde el flujo de incorporación para comenzar a poblar el catálogo."}
-              </p>
-              {activeFilterCount > 0 ? (
-                <div className="mt-4 flex justify-center">
-                  <Button type="button" variant="outline" onClick={resetFilters}>
-                    Limpiar filtros y volver al catálogo
-                  </Button>
-                </div>
-              ) : null}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/5 px-6 py-16 text-center">
+            <p className="text-base font-semibold text-foreground">
+              {activeFilterCount > 0 ? "Sin resultados para estos filtros" : "El catálogo está vacío"}
+            </p>
+            <p className="mx-auto mt-2 max-w-[30rem] text-sm leading-relaxed text-muted-foreground">
+              {activeFilterCount > 0
+                ? "Ningún producto coincide con los filtros activos. Probá limpiarlos o ampliando los criterios."
+                : "Cargá productos desde el flujo de incorporación para comenzar a poblar el catálogo."}
+            </p>
+            {activeFilterCount > 0 ? (
+              <Button type="button" variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+                Limpiar filtros
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
 
       <ProductDetailSheet
         productId={activeProductId}
