@@ -15,13 +15,6 @@ import { toast } from "sonner"
 import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
@@ -30,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 import type {
   SupplierListItem,
   SupplierListResult,
@@ -147,13 +141,7 @@ export function ProductImportForm() {
       (group) => group.supplierId.length === 0 || group.files.length === 0,
     ).length
 
-    return {
-      totalGroups,
-      totalFiles,
-      totalSize,
-      readyGroups,
-      incompleteGroups,
-    }
+    return { totalGroups, totalFiles, totalSize, readyGroups, incompleteGroups }
   }, [groups])
 
   function addSupplierGroup() {
@@ -167,12 +155,7 @@ export function ProductImportForm() {
   function updateGroupSupplier(groupId: string, supplierId: string) {
     setGroups((current) =>
       current.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              supplierId,
-            }
-          : group,
+        group.id === groupId ? { ...group, supplierId } : group,
       ),
     )
   }
@@ -181,10 +164,7 @@ export function ProductImportForm() {
     setGroups((current) =>
       current.map((group) =>
         group.id === groupId
-          ? {
-              ...group,
-              files: group.files.filter((entry) => entry.id !== fileId),
-            }
+          ? { ...group, files: group.files.filter((entry) => entry.id !== fileId) }
           : group,
       ),
     )
@@ -204,10 +184,7 @@ export function ProductImportForm() {
     setGroups((current) =>
       current.map((group) =>
         group.id === groupId
-          ? {
-              ...group,
-              files: [...group.files, ...files.map(createUploadFileEntry)],
-            }
+          ? { ...group, files: [...group.files, ...files.map(createUploadFileEntry)] }
           : group,
       ),
     )
@@ -249,9 +226,7 @@ export function ProductImportForm() {
     const formData = new FormData()
     groups.forEach((group) => {
       const supplier = suppliers.find((entry) => entry.id === group.supplierId)
-      if (!supplier) {
-        return
-      }
+      if (!supplier) return
 
       group.files.forEach((entry) => {
         formData.append("files", entry.file)
@@ -281,8 +256,7 @@ export function ProductImportForm() {
       toast.success("Carga iniciada", {
         id: toastId,
         description: [
-          payload.message ||
-            "Los archivos fueron enviados correctamente para su procesamiento con inteligencia artificial.",
+          payload.message || "Los archivos fueron enviados correctamente para su procesamiento.",
           payload.traceId ? `ID de seguimiento: ${payload.traceId}` : null,
         ]
           .filter(Boolean)
@@ -308,421 +282,325 @@ export function ProductImportForm() {
 
   return (
     <>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-6">
-          <Card className="overflow-hidden border-primary/10 bg-background/88 shadow-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
-            <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-1">
-                <CardTitle className="flex items-center gap-2 text-2xl">
-                  Carga masiva de productos
-                </CardTitle>
-                <CardDescription>
-                  Organiza la carga por proveedor: selecciona un proveedor
-                  existente, agrupa allí todos sus archivos y deja que el
-                  sistema los procese automáticamente con inteligencia
-                  artificial.
-                </CardDescription>
-              </div>
-              {groups.length !== 0 && (
-                <Button
-                  type="button"
-                  onClick={addSupplierGroup}
-                  className="shadow-sm"
-                >
-                  <FolderPlus className="size-4" />
-                  Agregar archivos para otro proveedor
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-6 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.02))]">
-              {isLoadingSuppliers ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-36 w-full rounded-3xl" />
-                  <Skeleton className="h-36 w-full rounded-3xl" />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+        {/* Main area */}
+        <div className="space-y-4">
+          {isLoadingSuppliers ? (
+            <div className="space-y-4">
+              <Skeleton className="h-36 w-full rounded-2xl" />
+              <Skeleton className="h-36 w-full rounded-2xl" />
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="relative overflow-hidden rounded-2xl border border-dashed border-primary/20 bg-[linear-gradient(145deg,color-mix(in_oklab,var(--color-primary)_8%,transparent),transparent_60%),linear-gradient(180deg,color-mix(in_oklab,var(--color-muted)_40%,transparent),transparent)] px-6 py-16 text-center shadow-sm">
+              <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+              <div className="mx-auto flex max-w-lg flex-col items-center gap-4">
+                <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/10">
+                  <UploadCloud className="size-7" />
                 </div>
-              ) : groups.length === 0 ? (
-                <div className="relative overflow-hidden rounded-3xl border border-dashed border-primary/20 bg-[linear-gradient(145deg,color-mix(in_oklab,var(--color-primary)_8%,transparent),transparent_60%),linear-gradient(180deg,color-mix(in_oklab,var(--color-muted)_40%,transparent),transparent)] px-6 py-14 text-center shadow-sm">
-                  <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-                  <div className="mx-auto flex max-w-lg flex-col items-center gap-4">
-                    <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/10">
-                      <UploadCloud className="size-7" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-lg font-semibold text-foreground">
-                        Comienza agregando un proveedor
-                      </p>
-                      <p className="text-sm leading-relaxed text-muted-foreground">
-                        Cada proveedor tendrá su propio bloque de archivos. Así
-                        podrás cargar varias listas para un mismo proveedor sin
-                        mezclar el flujo.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                      <Badge
-                        variant="outline"
-                        className="border-primary/20 bg-background/70 text-primary"
-                      >
-                        XLSX / XLS / CSV
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className="border-border/60 bg-background/70"
-                      >
-                        Procesamiento asistido
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-3 pt-2">
+                <div className="space-y-1">
+                  <p className="text-lg font-semibold text-foreground">
+                    Comienza agregando un proveedor
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Cada proveedor tiene su propio bloque de archivos. Así podés cargar varias listas para un mismo proveedor sin mezclar el flujo.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary">
+                    XLSX / XLS / CSV
+                  </Badge>
+                  <Badge variant="outline" className="border-border/60 bg-background/70">
+                    Procesamiento asistido
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap justify-center gap-3 pt-2">
+                  <Button type="button" onClick={addSupplierGroup} className="shadow-sm">
+                    <Plus className="size-4" />
+                    Agregar proveedor existente
+                  </Button>
+                  <Button type="button" variant="outline" onClick={createGroupAndOpenSupplierSheet}>
+                    Crear proveedor nuevo
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {summary.totalGroups} bloque(s) · {summary.totalFiles} archivo(s)
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={addSupplierGroup}>
+                  <FolderPlus className="size-4" />
+                  Agregar proveedor
+                </Button>
+              </div>
+
+              {groups.map((group, index) => {
+                const selectedSupplier = suppliers.find(
+                  (supplier) => supplier.id === group.supplierId,
+                )
+                const usedSupplierIds = groups
+                  .filter((candidate) => candidate.id !== group.id)
+                  .map((candidate) => candidate.supplierId)
+                  .filter((value) => value.length > 0)
+
+                return (
+                  <div
+                    key={group.id}
+                    className="overflow-hidden rounded-2xl border border-border/60 bg-background/90 shadow-sm animate-in fade-in-0 slide-in-from-bottom-2"
+                  >
+                    <div className="relative flex items-center justify-between gap-4 border-b border-border/50 px-5 py-4">
+                      <div className="absolute left-0 top-0 h-full w-[3px] rounded-r-full bg-primary/60" />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="border-primary/20 bg-background/80 text-primary">
+                          Grupo {index + 1}
+                        </Badge>
+                        {selectedSupplier ? (
+                          <span className="text-sm font-medium text-foreground">{selectedSupplier.name}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground/60">Proveedor pendiente</span>
+                        )}
+                      </div>
                       <Button
                         type="button"
-                        onClick={addSupplierGroup}
-                        className="shadow-sm"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeSupplierGroup(group.id)}
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
                       >
-                        <Plus className="size-4" />
-                        Agregar listas para un proveedor existente
+                        <Trash2 className="size-4" />
+                        Quitar
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={createGroupAndOpenSupplierSheet}
+                    </div>
+
+                    <div className="space-y-5 p-5">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-foreground">Proveedor</p>
+                          <Select
+                            value={group.supplierId}
+                            onValueChange={(value) => updateGroupSupplier(group.id, value)}
+                          >
+                            <SelectTrigger className="w-full bg-background">
+                              <SelectValue placeholder="Selecciona un proveedor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {activeSuppliers.map((supplier) => (
+                                <SelectItem
+                                  key={supplier.id}
+                                  value={supplier.id}
+                                  disabled={
+                                    usedSupplierIds.includes(supplier.id) &&
+                                    supplier.id !== group.supplierId
+                                  }
+                                >
+                                  {supplier.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => openCreateSupplier(group.id)}
+                        >
+                          <Plus className="size-4" />
+                          Nuevo proveedor
+                        </Button>
+                      </div>
+
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => fileInputRefs.current[group.id]?.click()}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault()
+                          if (event.dataTransfer.files?.length) {
+                            appendFilesToGroup(group.id, event.dataTransfer.files)
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            fileInputRefs.current[group.id]?.click()
+                          }
+                        }}
+                        className="group cursor-pointer rounded-2xl border border-dashed border-border/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_60%)] px-6 py-8 text-center transition-all duration-200 hover:border-primary/40 hover:bg-primary/5"
                       >
-                        Crear proveedor nuevo
-                      </Button>
+                        <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                          <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10 transition-transform duration-200 group-hover:scale-105">
+                            <UploadCloud className="size-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium text-foreground">
+                              Agregar archivos para{" "}
+                              {selectedSupplier?.name ?? "este proveedor"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {ACCEPTED_EXTENSIONS.join(", ").toUpperCase()} · haz clic o arrastra
+                            </p>
+                          </div>
+                        </div>
+
+                        <input
+                          ref={(node) => {
+                            fileInputRefs.current[group.id] = node
+                          }}
+                          type="file"
+                          accept={ACCEPTED_EXTENSIONS.join(",")}
+                          multiple
+                          className="hidden"
+                          onChange={(event) => {
+                            if (!event.target.files?.length) return
+                            appendFilesToGroup(group.id, event.target.files)
+                            event.target.value = ""
+                          }}
+                        />
+                      </div>
+
+                      {group.files.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{group.files.length} archivo(s)</span>
+                            <span>
+                              {formatBytes(
+                                group.files.reduce((total, entry) => total + entry.file.size, 0),
+                              )}
+                            </span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {group.files.map((entry) => (
+                              <div
+                                key={entry.id}
+                                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/80 px-4 py-2.5 transition-colors hover:border-primary/20"
+                              >
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <FileSpreadsheet className="size-4 shrink-0 text-primary" />
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium text-foreground">{entry.file.name}</p>
+                                    <p className="text-xs text-muted-foreground">{formatBytes(entry.file.size)}</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeFile(group.id, entry.id)}
+                                  className="size-7 shrink-0 text-muted-foreground/50 hover:text-destructive"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="rounded-xl border border-border/50 bg-muted/10 px-4 py-4 text-center text-sm text-muted-foreground">
+                          Este bloque todavía no tiene archivos asociados.
+                        </p>
+                      )}
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {groups.map((group, index) => {
-                    const selectedSupplier = suppliers.find(
-                      (supplier) => supplier.id === group.supplierId,
-                    )
-                    const usedSupplierIds = groups
-                      .filter((candidate) => candidate.id !== group.id)
-                      .map((candidate) => candidate.supplierId)
-                      .filter((value) => value.length > 0)
-
-                    return (
-                      <Card
-                        key={group.id}
-                        className="overflow-hidden border-border/70 shadow-xs animate-in fade-in-0 slide-in-from-bottom-2"
-                      >
-                        <CardHeader className="relative gap-4 border-b bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_60%),linear-gradient(180deg,transparent,rgba(255,255,255,0.02))] lg:flex-row lg:items-start lg:justify-between">
-                          <div className="absolute left-0 top-0 h-full w-1 rounded-r-full bg-primary/60" />
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className="border-primary/20 bg-background/80 text-primary"
-                              >
-                                Grupo {index + 1}
-                              </Badge>
-                              {selectedSupplier ? (
-                                <Badge variant="secondary">
-                                  {selectedSupplier.name}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">
-                                  Proveedor pendiente
-                                </Badge>
-                              )}
-                            </div>
-                            <CardTitle className="text-lg">
-                              Proveedor {index + 1}
-                            </CardTitle>
-                            <CardDescription>
-                              Selecciona un proveedor y agrega aquí todas las
-                              listas que correspondan a ese mismo proveedor.
-                            </CardDescription>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeSupplierGroup(group.id)}
-                            className="self-start text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="size-4" />
-                            Quitar bloque
-                          </Button>
-                        </CardHeader>
-                        <CardContent className="space-y-5 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.015))] pt-6">
-                          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-foreground">
-                                Proveedor
-                              </p>
-                              <Select
-                                value={group.supplierId}
-                                onValueChange={(value) =>
-                                  updateGroupSupplier(group.id, value)
-                                }
-                              >
-                                <SelectTrigger className="w-full bg-background shadow-xs">
-                                  <SelectValue placeholder="Selecciona un proveedor existente" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {activeSuppliers.map((supplier) => (
-                                    <SelectItem
-                                      key={supplier.id}
-                                      value={supplier.id}
-                                      disabled={
-                                        usedSupplierIds.includes(supplier.id) &&
-                                        supplier.id !== group.supplierId
-                                      }
-                                    >
-                                      {supplier.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => openCreateSupplier(group.id)}
-                            >
-                              Crear proveedor nuevo
-                            </Button>
-                          </div>
-
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() =>
-                              fileInputRefs.current[group.id]?.click()
-                            }
-                            onDragOver={(event) => event.preventDefault()}
-                            onDrop={(event) => {
-                              event.preventDefault()
-                              if (event.dataTransfer.files?.length) {
-                                appendFilesToGroup(
-                                  group.id,
-                                  event.dataTransfer.files,
-                                )
-                              }
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault()
-                                fileInputRefs.current[group.id]?.click()
-                              }
-                            }}
-                            className="group cursor-pointer rounded-3xl border border-dashed border-border/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_60%)] px-6 py-9 text-center transition-all duration-300 hover:border-primary/40 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5"
-                          >
-                            <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-                              <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/10 transition-transform duration-300 group-hover:scale-105">
-                                <UploadCloud className="size-6" />
-                              </div>
-                              <div className="space-y-1">
-                                <p className="text-base font-medium text-foreground">
-                                  Agregar archivos para{" "}
-                                  {selectedSupplier?.name ?? "este proveedor"}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Puedes subir una o varias listas. Formatos
-                                  soportados:{" "}
-                                  {ACCEPTED_EXTENSIONS.join(", ").toUpperCase()}
-                                </p>
-                              </div>
-                            </div>
-
-                            <input
-                              ref={(node) => {
-                                fileInputRefs.current[group.id] = node
-                              }}
-                              type="file"
-                              accept={ACCEPTED_EXTENSIONS.join(",")}
-                              multiple
-                              className="hidden"
-                              onChange={(event) => {
-                                if (!event.target.files?.length) {
-                                  return
-                                }
-
-                                appendFilesToGroup(group.id, event.target.files)
-                                event.target.value = ""
-                              }}
-                            />
-                          </div>
-
-                          {group.files.length > 0 ? (
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                <span>
-                                  {group.files.length} archivo(s) cargado(s)
-                                </span>
-                                <span>
-                                  {formatBytes(
-                                    group.files.reduce(
-                                      (total, entry) => total + entry.file.size,
-                                      0,
-                                    ),
-                                  )}
-                                </span>
-                              </div>
-
-                              <div className="space-y-2">
-                                {group.files.map((entry) => (
-                                  <div
-                                    key={entry.id}
-                                    className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/90 px-4 py-3 shadow-xs transition-all duration-200 hover:border-primary/20 hover:shadow-sm"
-                                  >
-                                    <div className="min-w-0 space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <FileSpreadsheet className="size-4 text-primary" />
-                                        <p className="truncate font-medium text-foreground">
-                                          {entry.file.name}
-                                        </p>
-                                      </div>
-                                      <p className="text-sm text-muted-foreground">
-                                        {formatBytes(entry.file.size)}
-                                      </p>
-                                    </div>
-
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() =>
-                                        removeFile(group.id, entry.id)
-                                      }
-                                      className="text-muted-foreground hover:text-destructive"
-                                    >
-                                      <Trash2 className="size-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-6 text-center text-sm text-muted-foreground">
-                              Este proveedor todavía no tiene archivos
-                              asociados.
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <Card className="overflow-hidden border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm animate-in fade-in-0 slide-in-from-right-2 duration-500">
-            <CardHeader>
-              <CardTitle>Resumen de la carga</CardTitle>
-              <CardDescription>
-                Revisa el estado general antes de enviar.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 shadow-xs">
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    Proveedores
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">
-                    {summary.totalGroups}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3 shadow-xs">
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    Archivos
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">
-                    {summary.totalFiles}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">Proveedores</span>
-                <span className="font-medium">{summary.totalGroups}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">Archivos</span>
-                <span className="font-medium">{summary.totalFiles}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">Bloques listos</span>
-                <span className="font-medium">{summary.readyGroups}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">
-                  Bloques incompletos
-                </span>
-                <span className="font-medium">{summary.incompleteGroups}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span className="text-muted-foreground">Peso estimado</span>
-                <span className="font-medium">
-                  {formatBytes(summary.totalSize)}
-                </span>
-              </div>
+        {/* Sidebar */}
+        <aside className="xl:sticky xl:top-6 xl:self-start">
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/90 shadow-sm animate-in fade-in-0 slide-in-from-right-2 duration-500">
+            <div className="border-b border-border/50 px-5 py-4">
+              <p className="text-sm font-semibold text-foreground">Resumen</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Estado general de la carga</p>
+            </div>
 
-              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 text-muted-foreground shadow-xs">
-                Selecciona proveedores existentes o crea uno nuevo en el
-                momento. Después podrás subir varias listas dentro del mismo
-                bloque del proveedor para mantener la carga ordenada y clara.
-              </div>
-
-              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4 shadow-xs">
-                <p className="text-sm font-medium text-foreground">
-                  Formato de trabajo recomendado
+            <div className="grid grid-cols-2 gap-px bg-border/40">
+              <div className="bg-background px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Proveedores
                 </p>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex gap-3">
-                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-                      1
-                    </span>
-                    <span>Agrega un proveedor al flujo.</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-                      2
-                    </span>
-                    <span>
-                      Sube todas las listas que correspondan a ese proveedor.
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-                      3
-                    </span>
-                    <span>Repite el proceso con los demás proveedores.</span>
-                  </li>
-                </ul>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                  {summary.totalGroups}
+                </p>
               </div>
+              <div className="bg-background px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Archivos
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                  {summary.totalFiles}
+                </p>
+              </div>
+            </div>
 
-              <div className="space-y-3">
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || groups.length === 0}
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ArrowRightCircle className="size-4" />
-                  )}
-                  {isSubmitting ? "Iniciando carga..." : "Iniciar carga masiva"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={clearAll}
-                  disabled={isSubmitting || groups.length === 0}
-                >
-                  Limpiar todo
-                </Button>
+            <div className="divide-y divide-border/40 px-5">
+              <div className="flex items-center justify-between py-2.5 text-sm">
+                <span className="text-muted-foreground">Listos</span>
+                <span className={cn("font-medium tabular-nums", summary.readyGroups > 0 ? "text-emerald-700" : "text-foreground")}>
+                  {summary.readyGroups}
+                </span>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex items-center justify-between py-2.5 text-sm">
+                <span className="text-muted-foreground">Incompletos</span>
+                <span className={cn("font-medium tabular-nums", summary.incompleteGroups > 0 ? "text-amber-700" : "text-foreground")}>
+                  {summary.incompleteGroups}
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2.5 text-sm">
+                <span className="text-muted-foreground">Peso estimado</span>
+                <span className="font-medium tabular-nums text-foreground">{formatBytes(summary.totalSize)}</span>
+              </div>
+            </div>
+
+            <div className="border-t border-border/50 px-5 py-4">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                Cómo funciona
+              </p>
+              <ol className="space-y-2.5">
+                {[
+                  "Agrega un proveedor al flujo.",
+                  "Sube todas las listas que correspondan a ese proveedor.",
+                  "Repite el proceso con los demás proveedores.",
+                ].map((step, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm text-muted-foreground">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                      {i + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="border-t border-border/50 px-5 py-4 space-y-2">
+              <Button
+                type="button"
+                className="w-full"
+                onClick={handleSubmit}
+                disabled={isSubmitting || groups.length === 0}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ArrowRightCircle className="size-4" />
+                )}
+                {isSubmitting ? "Iniciando carga..." : "Iniciar carga masiva"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={clearAll}
+                disabled={isSubmitting || groups.length === 0}
+              >
+                Limpiar todo
+              </Button>
+            </div>
+          </div>
         </aside>
       </div>
 
@@ -745,10 +623,7 @@ export function ProductImportForm() {
             setGroups((current) =>
               current.map((group) =>
                 group.id === targetGroupId
-                  ? {
-                      ...group,
-                      supplierId: supplier.id,
-                    }
+                  ? { ...group, supplierId: supplier.id }
                   : group,
               ),
             )
