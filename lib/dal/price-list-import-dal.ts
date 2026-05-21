@@ -191,6 +191,10 @@ export async function persistNormalizedSupplierGroup({
           },
         })
 
+        existingProductMap.set(candidate.supplierProductCode, {
+          ...existingProduct,
+          ...updatedProduct,
+        })
         productRecords.set(candidate.supplierProductCode, updatedProduct)
         productsUpdated += 1
         continue
@@ -214,6 +218,11 @@ export async function persistNormalizedSupplierGroup({
         },
       })
 
+      existingProductMap.set(candidate.supplierProductCode, {
+        id: createdProduct.id,
+        supplierProductCode: candidate.supplierProductCode,
+        salePrice: createdProduct.salePrice,
+      })
       productRecords.set(candidate.supplierProductCode, createdProduct)
       productsCreated += 1
     }
