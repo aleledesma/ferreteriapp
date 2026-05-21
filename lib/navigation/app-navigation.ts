@@ -1,14 +1,14 @@
 import type { UserRole } from "@prisma/client"
 import type { LucideIcon } from "lucide-react"
 import {
-  Boxes,
+  BadgeDollarSign,
+  Building2,
   ClipboardPlus,
-  LayoutDashboard,
+  Home,
+  Package2,
   ReceiptText,
-  ShieldCheck,
-  ShoppingCart,
-  Truck,
-  Users,
+  Shield,
+  UserRound,
 } from "lucide-react"
 
 export type AppNavigationItem = {
@@ -23,21 +23,21 @@ export const appNavigation: AppNavigationItem[] = [
   {
     path: "/",
     label: "Inicio",
-    icon: LayoutDashboard,
+    icon: Home,
     allowedRoles: ["ACTIVE", "ADMIN"],
     visibleInSidebar: true,
   },
   {
     path: "/customers",
     label: "Clientes",
-    icon: Users,
+    icon: UserRound,
     allowedRoles: ["ACTIVE", "ADMIN"],
     visibleInSidebar: true,
   },
   {
     path: "/products",
     label: "Productos",
-    icon: Boxes,
+    icon: Package2,
     allowedRoles: ["ACTIVE", "ADMIN"],
     visibleInSidebar: true,
   },
@@ -51,7 +51,7 @@ export const appNavigation: AppNavigationItem[] = [
   {
     path: "/sales",
     label: "Ventas",
-    icon: ShoppingCart,
+    icon: BadgeDollarSign,
     allowedRoles: ["ACTIVE", "ADMIN"],
     visibleInSidebar: true,
   },
@@ -65,14 +65,14 @@ export const appNavigation: AppNavigationItem[] = [
   {
     path: "/suppliers",
     label: "Proveedores",
-    icon: Truck,
+    icon: Building2,
     allowedRoles: ["ACTIVE", "ADMIN"],
     visibleInSidebar: true,
   },
   {
     path: "/admin",
     label: "Administración",
-    icon: ShieldCheck,
+    icon: Shield,
     allowedRoles: ["ADMIN"],
     visibleInSidebar: true,
   },
