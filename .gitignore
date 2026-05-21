@@ -46,3 +46,7 @@ skills-lock.json
 /lib/generated/prisma
 /.atl/
 /.claude/
+/.opencode/
+/.harness/
+CLAUDE.md
+opencode.jsonc
