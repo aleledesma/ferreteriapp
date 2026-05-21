@@ -39,7 +39,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   ])
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_var(--color-primary)/12,_transparent_34%),radial-gradient(circle_at_88%_12%,_color-mix(in_oklab,var(--color-primary)_14%,transparent),_transparent_22%),linear-gradient(180deg,var(--color-background),color-mix(in_oklab,var(--color-muted)_42%,transparent))] p-4 md:p-8">
+    <main className="min-h-full bg-[radial-gradient(circle_at_top,_var(--color-primary)/12,_transparent_34%),radial-gradient(circle_at_88%_12%,_color-mix(in_oklab,var(--color-primary)_14%,transparent),_transparent_22%),linear-gradient(180deg,var(--color-background),color-mix(in_oklab,var(--color-muted)_42%,transparent))] p-4 md:p-8">
       <div className="mx-auto w-full max-w-7xl">
         <ProductsPageClient initialCatalog={initialCatalog} initialKpis={initialKpis} supplierOptions={supplierOptions} />
       </div>

@@ -3,14 +3,7 @@ import { redirect } from "next/navigation"
 
 import { signOut } from "@/auth"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireAuthenticatedUser } from "@/lib/auth/guards"
 
 export default async function HomePage() {
@@ -27,7 +20,7 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+    <main className="flex min-h-full items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle>FerreteriApp</CardTitle>

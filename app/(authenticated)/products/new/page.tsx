@@ -13,15 +13,11 @@ export default async function NewProductsPage() {
   await requireRole(["ACTIVE", "ADMIN"])
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_var(--color-primary)/14,_transparent_30%),radial-gradient(circle_at_85%_15%,_color-mix(in_oklab,var(--color-primary)_18%,transparent),_transparent_22%),linear-gradient(180deg,var(--color-background),color-mix(in_oklab,var(--color-muted)_45%,transparent))] p-4 md:p-8">
+    <main className="min-h-full bg-[radial-gradient(circle_at_top,_var(--color-primary)/14,_transparent_30%),radial-gradient(circle_at_85%_15%,_color-mix(in_oklab,var(--color-primary)_18%,transparent),_transparent_22%),linear-gradient(180deg,var(--color-background),color-mix(in_oklab,var(--color-muted)_45%,transparent))] p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
         <div className="animate-in fade-in-0 slide-in-from-bottom-1 duration-500">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Catálogo / Nuevos productos
-          </p>
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            Nuevos productos
-          </h1>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Catálogo / Nuevos productos</p>
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">Nuevos productos</h1>
           <p className="mt-2 max-w-2xl text-base leading-relaxed text-muted-foreground">
             Centraliza la incorporación de listas de precios y prepara la información para crear o actualizar productos del catálogo.
           </p>
@@ -34,9 +30,7 @@ export default async function NewProductsPage() {
                   </span>
                   <span className="text-sm font-medium text-foreground">{step.title}</span>
                 </div>
-                {index < STEPS.length - 1 && (
-                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/40" />
-                )}
+                {index < STEPS.length - 1 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/40" /> : null}
               </div>
             ))}
           </div>
