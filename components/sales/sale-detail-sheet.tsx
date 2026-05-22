@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Receipt, Printer, Loader2, Package, Calendar, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 
 type SaleDetailSheetProps = {
   saleId: string | null
