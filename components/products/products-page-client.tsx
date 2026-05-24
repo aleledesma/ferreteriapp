@@ -11,6 +11,7 @@ import type {
   ProductCatalogKpisResponse,
   ProductCatalogSupplierOption,
   ProductListResponse,
+  RestoreProductsResponse,
   ProductSaleStatusFilter,
   ProductSortOption,
   ProductStockStatus,
@@ -90,10 +91,22 @@ async function fetchCatalog(searchParams: URLSearchParams) {
   return payload
 }
 
+async function fetchKpis() {
+  const response = await fetch("/api/products/kpis")
+  const payload = (await response.json()) as ProductCatalogKpisResponse & { error?: string }
+
+  if (!response.ok) {
+    throw new Error(payload.error || "No se pudieron cargar los KPIs del catálogo.")
+  }
+
+  return payload
+}
+
 export function ProductsPageClient({ initialCatalog, initialKpis, supplierOptions }: ProductsPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [catalog, setCatalog] = useState(initialCatalog)
+  const [kpis, setKpis] = useState(initialKpis)
   const [filters, setFilters] = useState(() => buildInitialFilters(initialCatalog.appliedFilters))
   const [isPending, startTransition] = useTransition()
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -101,6 +114,10 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false)
   const [isDeactivating, setIsDeactivating] = useState(false)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
+  const [lastDeletedBatch, setLastDeletedBatch] = useState<{
+    productIds: string[]
+    expiresAt: string
+  } | null>(null)
   const hasMountedRef = useRef(false)
 
   const activeProductId = searchParams.get("product")
@@ -166,9 +183,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
     return params
   }, [])
 
-  function buildBaseParams() {
+  const buildBaseParams = useCallback(() => {
     return buildParamsFromFilters(effectiveFilters)
-  }
+  }, [buildParamsFromFilters, effectiveFilters])
 
   function buildRouteParams(productId: string | null) {
     const next = buildBaseParams()
@@ -246,12 +263,19 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
     })
   }
 
-  async function refreshCatalogWithCurrentFilters() {
+  const refreshCatalogWithCurrentFilters = useCallback(async () => {
     const params = buildBaseParams()
     const nextCatalog = await fetchCatalog(params)
     setCatalog(nextCatalog)
     setSelectedIds([])
-  }
+
+    try {
+      const nextKpis = await fetchKpis()
+      setKpis(nextKpis)
+    } catch {
+      // Keep the previous KPI snapshot if this auxiliary refresh fails.
+    }
+  }, [buildBaseParams])
 
   async function handleDeactivateSelected() {
     if (selectedIds.length === 0) {
@@ -261,7 +285,7 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
     setIsDeactivating(true)
 
     try {
-      const response = await fetch("/api/products/deactivate", {
+      const response = await fetch("/api/products/delete", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -272,22 +296,65 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       const payload = (await response.json()) as DeactivateProductsResponse & { error?: string }
 
       if (!response.ok) {
-        throw new Error(payload.error || "No se pudieron desactivar los productos.")
+        throw new Error(payload.error || "No se pudieron eliminar los productos.")
       }
 
       await refreshCatalogWithCurrentFilters()
       setIsDeactivateDialogOpen(false)
-      toast.success("Productos desactivados", {
-        description: `${payload.processedCount} producto${payload.processedCount === 1 ? "" : "s"} actualizado${payload.processedCount === 1 ? "" : "s"}.`,
+      const batch = {
+        productIds: [...selectedIds],
+        expiresAt: payload.expiresAt,
+      }
+      setLastDeletedBatch(batch)
+      toast.success("Productos eliminados", {
+        description: `${payload.processedCount} producto${payload.processedCount === 1 ? "" : "s"} eliminado${payload.processedCount === 1 ? "" : "s"}.`,
+        action: {
+          label: "Deshacer",
+          onClick: () => {
+            void restoreDeletedProducts(batch.productIds)
+          },
+        },
       })
     } catch (error) {
-      toast.error("No se pudieron desactivar los productos", {
+      toast.error("No se pudieron eliminar los productos", {
         description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
       })
     } finally {
       setIsDeactivating(false)
     }
   }
+
+  const restoreDeletedProducts = useCallback(async (productIds: string[]) => {
+    if (productIds.length === 0) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/products/restore", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ productIds }),
+      })
+
+      const payload = (await response.json()) as RestoreProductsResponse & { error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error || "No se pudieron restaurar los productos.")
+      }
+
+      await refreshCatalogWithCurrentFilters()
+      setLastDeletedBatch(null)
+      toast.success("Eliminación revertida", {
+        description: `${payload.processedCount} producto${payload.processedCount === 1 ? "" : "s"} restaurado${payload.processedCount === 1 ? "" : "s"}.`,
+      })
+    } catch (error) {
+      toast.error("No se pudo revertir la eliminación", {
+        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      })
+    }
+  }, [refreshCatalogWithCurrentFilters])
 
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -319,6 +386,35 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
     router.replace(`/products?${nextRouteParams.toString()}`, { scroll: false })
   }, [activeProductId, buildParamsFromFilters, effectiveFilters, router])
 
+  useEffect(() => {
+    function handleUndo(event: KeyboardEvent) {
+      const isUndoShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z"
+      if (!isUndoShortcut || !lastDeletedBatch) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+      if (target) {
+        const tagName = target.tagName.toLowerCase()
+        const isEditable =
+          target.isContentEditable ||
+          tagName === "input" ||
+          tagName === "textarea" ||
+          tagName === "select"
+
+        if (isEditable) {
+          return
+        }
+      }
+
+      event.preventDefault()
+      void restoreDeletedProducts(lastDeletedBatch.productIds)
+    }
+
+    window.addEventListener("keydown", handleUndo)
+    return () => window.removeEventListener("keydown", handleUndo)
+  }, [lastDeletedBatch, restoreDeletedProducts])
+
   return (
     <div className="space-y-8 animate-in fade-in-0 slide-in-from-top-2 duration-500">
       {/* Page header */}
@@ -335,7 +431,7 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       </div>
 
       {/* KPI strip */}
-      <ProductsKpiStrip kpis={initialKpis} />
+      <ProductsKpiStrip kpis={kpis} />
 
       {/* Filter + table workspace */}
       <div className="space-y-4">
@@ -542,7 +638,7 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                   className="h-7 px-2.5 text-xs"
                   onClick={() => setIsDeactivateDialogOpen(true)}
                 >
-                  Desactivar seleccionados
+                  Eliminar seleccionados
                 </Button>
               </div>
             ) : null}
@@ -612,6 +708,39 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
         productId={activeProductId}
         open={Boolean(activeProductId)}
         onProductChanged={refreshCatalogWithCurrentFilters}
+        onDeleteProduct={async (productId) => {
+          const response = await fetch("/api/products/delete", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ productIds: [productId] }),
+          })
+
+          const payload = (await response.json()) as DeactivateProductsResponse & { error?: string }
+
+          if (!response.ok) {
+            throw new Error(payload.error || "No se pudo eliminar el producto.")
+          }
+
+          const batch = {
+            productIds: [productId],
+            expiresAt: payload.expiresAt,
+          }
+
+          setLastDeletedBatch(batch)
+          syncProductQuery(null)
+          await refreshCatalogWithCurrentFilters()
+          toast.success("Producto eliminado", {
+            description: "El producto fue eliminado.",
+            action: {
+              label: "Deshacer",
+              onClick: () => {
+                void restoreDeletedProducts(batch.productIds)
+              },
+            },
+          })
+        }}
         onOpenChange={(open) => {
           if (!open) {
             syncProductQuery(null)

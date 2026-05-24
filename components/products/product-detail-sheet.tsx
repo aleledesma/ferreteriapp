@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   Barcode,
@@ -9,6 +9,7 @@ import {
   PackageSearch,
   PencilLine,
   ShoppingBag,
+  Trash2,
   Warehouse,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -32,6 +33,7 @@ type ProductDetailSheetProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onProductChanged?: () => Promise<void> | void
+  onDeleteProduct?: (productId: string) => Promise<void>
 }
 
 type ActiveTab = "summary" | "inventory" | "edit"
@@ -75,7 +77,9 @@ export function ProductDetailSheet({
   open,
   onOpenChange,
   onProductChanged,
+  onDeleteProduct,
 }: ProductDetailSheetProps) {
+  const onOpenChangeRef = useRef(onOpenChange)
   const [detail, setDetail] = useState<ProductDetailResponse["product"] | null>(
     null,
   )
@@ -128,11 +132,17 @@ export function ProductDetailSheet({
   }
 
   useEffect(() => {
+    onOpenChangeRef.current = onOpenChange
+  }, [onOpenChange])
+
+  useEffect(() => {
     if (!open || !productId) {
       setDetail(null)
       setActiveTab("summary")
       return
     }
+
+    let cancelled = false
 
     async function loadDetail() {
       setIsLoading(true)
@@ -149,21 +159,35 @@ export function ProductDetailSheet({
           )
         }
 
+        if (cancelled) {
+          return
+        }
+
         setDetail(payload.product)
         syncDraft(payload.product)
       } catch (error) {
+        if (cancelled) {
+          return
+        }
+
         toast.error("No se pudo abrir el detalle", {
           description:
             error instanceof Error ? error.message : "Inténtalo nuevamente.",
         })
-        onOpenChange(false)
+        onOpenChangeRef.current(false)
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     void loadDetail()
-  }, [onOpenChange, open, productId])
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, productId])
 
   async function refreshParentCatalog() {
     await onProductChanged?.()
@@ -366,6 +390,11 @@ export function ProductDetailSheet({
               {detail.description ? (
                 <p className="text-xs leading-relaxed text-muted-foreground/70">
                   {detail.description}
+                </p>
+              ) : null}
+              {detail.deletion.deletedAt ? (
+                <p className="text-xs font-medium text-destructive/80">
+                  Marcado para eliminación hasta {formatDateTime(detail.deletion.deleteExpiresAt)}
                 </p>
               ) : null}
             </div>
@@ -763,6 +792,32 @@ export function ProductDetailSheet({
                       >
                         <ShoppingBag className="size-3.5" />
                         {detail.flags.isForSale ? "En venta" : "No en venta"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSaving || !detail.flags.isActive || detail.flags.isDeleted}
+                        onClick={async () => {
+                          if (!productId || !onDeleteProduct) {
+                            return
+                          }
+
+                          setIsSaving(true)
+                          try {
+                            await onDeleteProduct(productId)
+                            onOpenChange(false)
+                          } catch (error) {
+                            toast.error("No se pudo eliminar el producto", {
+                              description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+                            })
+                          } finally {
+                            setIsSaving(false)
+                          }
+                        }}
+                        className="flex items-center gap-2 rounded-lg border border-destructive/25 bg-destructive/[0.04] px-4 py-2.5 text-sm font-medium text-destructive/80 transition-all duration-150 hover:bg-destructive/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Eliminar
                       </button>
                     </div>
                   </div>

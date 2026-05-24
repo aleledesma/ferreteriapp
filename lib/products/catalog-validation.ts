@@ -2,6 +2,7 @@ import type {
   DeactivateProductsRequest,
   ProductActivityStatusFilter,
   ProductCatalogFilters,
+  RestoreProductsRequest,
   ProductSaleStatusFilter,
   ProductSortOption,
   ProductStockStatus,
@@ -110,6 +111,22 @@ export function parseDeactivateProductsRequest(payload: unknown): DeactivateProd
 
   if (productIds.length === 0) {
     throw new Error("Debes seleccionar al menos un producto.")
+  }
+
+  return { productIds }
+}
+
+export function parseRestoreProductsRequest(payload: unknown): RestoreProductsRequest {
+  if (!payload || typeof payload !== "object" || !Array.isArray((payload as { productIds?: unknown[] }).productIds)) {
+    throw new Error("Debes indicar los productos a restaurar.")
+  }
+
+  const productIds = (payload as { productIds: unknown[] }).productIds.filter(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  )
+
+  if (productIds.length === 0) {
+    throw new Error("Debes indicar al menos un producto para restaurar.")
   }
 
   return { productIds }

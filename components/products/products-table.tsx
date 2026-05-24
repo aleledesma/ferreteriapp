@@ -131,18 +131,18 @@ export function ProductsTable({ items, activeProductId, onOpenDetail, selectedId
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Estado</p>
-                  <div className="mt-1 space-y-1">
-                    <Badge variant="outline" className={cn("text-[11px] font-medium", getStockBadgeClasses(product.inventory.stockStatus))}>
-                      {product.inventory.stockStatus === "sin_stock" ? <PackageMinus className="size-3" /> : null}
-                      {getStockLabel(product.inventory.stockStatus)}
-                    </Badge>
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <span className={cn("inline-block size-1.5 rounded-full", product.flags.isActive ? "bg-emerald-500" : "bg-muted-foreground/40")} />
-                      {product.flags.isActive ? "Activo" : "Inactivo"}
-                      {product.flags.isForSale && product.flags.isActive ? <span className="text-muted-foreground/60">· En venta</span> : null}
+                    <div className="mt-1 space-y-1">
+                      <Badge variant="outline" className={cn("text-[11px] font-medium", getStockBadgeClasses(product.inventory.stockStatus))}>
+                        {product.inventory.stockStatus === "sin_stock" ? <PackageMinus className="size-3" /> : null}
+                        {getStockLabel(product.inventory.stockStatus)}
+                      </Badge>
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className={cn("inline-block size-1.5 rounded-full", product.flags.isDeleted ? "bg-destructive" : product.flags.isActive ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                        {product.flags.isDeleted ? "Eliminado" : product.flags.isActive ? "Activo" : "Inactivo"}
+                        {product.flags.isForSale && product.flags.isActive ? <span className="text-muted-foreground/60">· En venta</span> : null}
+                      </div>
                     </div>
                   </div>
-                </div>
               </div>
 
               {product.brand || product.categoryName ? (
@@ -297,10 +297,10 @@ export function ProductsTable({ items, activeProductId, onOpenDetail, selectedId
                         <span
                           className={cn(
                             "inline-block size-1.5 rounded-full",
-                            product.flags.isActive ? "bg-emerald-500" : "bg-muted-foreground/40",
+                            product.flags.isDeleted ? "bg-destructive" : product.flags.isActive ? "bg-emerald-500" : "bg-muted-foreground/40",
                           )}
                         />
-                        {product.flags.isActive ? "Activo" : "Inactivo"}
+                        {product.flags.isDeleted ? "Eliminado" : product.flags.isActive ? "Activo" : "Inactivo"}
                         {product.flags.isForSale && product.flags.isActive ? (
                           <span className="text-muted-foreground/60">· En venta</span>
                         ) : null}

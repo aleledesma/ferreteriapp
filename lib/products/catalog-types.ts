@@ -46,6 +46,11 @@ export type ProductListItemDto = {
   flags: {
     isActive: boolean
     isForSale: boolean
+    isDeleted: boolean
+  }
+  deletion: {
+    deletedAt: string | null
+    deleteExpiresAt: string | null
   }
   updatedAt: string
 }
@@ -124,6 +129,11 @@ export type ProductDetailDto = {
   flags: {
     isActive: boolean
     isForSale: boolean
+    isDeleted: boolean
+  }
+  deletion: {
+    deletedAt: string | null
+    deleteExpiresAt: string | null
   }
   salesSummary: {
     lastSaleAt: string | null
@@ -145,6 +155,16 @@ export type DeactivateProductsRequest = {
 export type DeactivateProductsResponse = {
   processedCount: number
   updatedIds: string[]
+  expiresAt: string
+}
+
+export type RestoreProductsRequest = {
+  productIds: string[]
+}
+
+export type RestoreProductsResponse = {
+  processedCount: number
+  restoredIds: string[]
 }
 
 export type UpdateProductRequest = {

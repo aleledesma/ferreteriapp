@@ -9,6 +9,7 @@ import type {
   ProductCatalogKpisResponse,
   ProductCatalogSupplierOption,
   DeactivateProductsResponse,
+  RestoreProductsResponse,
   ProductDetailDto,
   ProductListItemDto,
   ProductListResponse,
@@ -19,6 +20,14 @@ import type {
   StockAdjustmentResponse,
   UpdateProductRequest,
 } from "@/lib/products/catalog-types"
+
+const PRODUCT_DELETE_TTL_DAYS = 7
+
+function buildDeleteExpiryDate(base = new Date()) {
+  const next = new Date(base)
+  next.setUTCDate(next.getUTCDate() + PRODUCT_DELETE_TTL_DAYS)
+  return next
+}
 
 type ProductRow = {
   id: string
@@ -35,6 +44,8 @@ type ProductRow = {
   minStock: number
   isActive: boolean
   isForSale: boolean
+  deletedAt: Date | null
+  deleteExpiresAt: Date | null
   createdAt: Date
   updatedAt: Date
   supplier: {
@@ -70,6 +81,11 @@ function toProductListItem(product: ProductRow): ProductListItemDto {
     flags: {
       isActive: product.isActive,
       isForSale: product.isForSale,
+      isDeleted: product.deletedAt !== null,
+    },
+    deletion: {
+      deletedAt: product.deletedAt?.toISOString() ?? null,
+      deleteExpiresAt: product.deleteExpiresAt?.toISOString() ?? null,
     },
     updatedAt: product.updatedAt.toISOString(),
   }
@@ -86,6 +102,8 @@ function getCursorOffset(cursor: string | null) {
 
 function buildWhere(filters: ProductCatalogFilters): Prisma.ProductWhereInput {
   const where: Prisma.ProductWhereInput = {}
+
+  where.deletedAt = null
 
   if (filters.activityStatus === "active") {
     where.isActive = true
@@ -220,14 +238,22 @@ export async function getProductCatalogKpis(): Promise<ProductCatalogKpisRespons
       stock: true,
       minStock: true,
       isActive: true,
+      deletedAt: true,
     },
   })
 
   let lowStockProducts = 0
   let outOfStockProducts = 0
   let activeProducts = 0
+  let totalProducts = 0
 
   for (const product of products) {
+    if (product.deletedAt) {
+      continue
+    }
+
+    totalProducts += 1
+
     const stockStatus = deriveStockStatus(product.stock, product.minStock)
 
     if (product.isActive) {
@@ -244,7 +270,7 @@ export async function getProductCatalogKpis(): Promise<ProductCatalogKpisRespons
   }
 
   return {
-    totalProducts: products.length,
+    totalProducts,
     activeProducts,
     lowStockProducts,
     outOfStockProducts,
@@ -343,6 +369,10 @@ export async function getProductDetail(productId: string): Promise<ProductDetail
     return null
   }
 
+  if (product.deletedAt) {
+    return null
+  }
+
   const totalUnitsSold = product.saleItems.reduce((sum, item) => sum + item.quantity, 0)
   const lastSaleAt = product.saleItems[0]?.createdAt.toISOString() ?? null
 
@@ -376,6 +406,11 @@ export async function getProductDetail(productId: string): Promise<ProductDetail
     flags: {
       isActive: product.isActive,
       isForSale: product.isForSale,
+      isDeleted: false,
+    },
+    deletion: {
+      deletedAt: null,
+      deleteExpiresAt: null,
     },
     salesSummary: {
       lastSaleAt,
@@ -388,6 +423,8 @@ export async function getProductDetail(productId: string): Promise<ProductDetail
 }
 
 export async function deactivateProducts(productIds: string[]): Promise<DeactivateProductsResponse> {
+  const expiresAt = buildDeleteExpiryDate()
+
   const result = await prisma.product.updateMany({
     where: {
       id: {
@@ -396,12 +433,38 @@ export async function deactivateProducts(productIds: string[]): Promise<Deactiva
     },
     data: {
       isActive: false,
+      deletedAt: new Date(),
+      deleteExpiresAt: expiresAt,
     },
   })
 
   return {
     processedCount: result.count,
     updatedIds: productIds,
+    expiresAt: expiresAt.toISOString(),
+  }
+}
+
+export async function restoreProducts(productIds: string[]): Promise<RestoreProductsResponse> {
+  const result = await prisma.product.updateMany({
+    where: {
+      id: {
+        in: productIds,
+      },
+      deletedAt: {
+        not: null,
+      },
+    },
+    data: {
+      isActive: true,
+      deletedAt: null,
+      deleteExpiresAt: null,
+    },
+  })
+
+  return {
+    processedCount: result.count,
+    restoredIds: productIds,
   }
 }
 
@@ -420,6 +483,12 @@ export async function updateProduct(productId: string, input: UpdateProductReque
       minStock: input.minStock,
       isActive: input.isActive,
       isForSale: input.isForSale,
+      ...(input.isActive === true
+        ? {
+            deletedAt: null,
+            deleteExpiresAt: null,
+          }
+        : {}),
     },
   })
 
@@ -480,4 +549,47 @@ export async function createManualStockAdjustment(
   })
 
   return result
+}
+
+export async function purgeExpiredDeletedProducts() {
+  const now = new Date()
+
+  const candidates = await prisma.product.findMany({
+    where: {
+      deletedAt: {
+        not: null,
+      },
+      deleteExpiresAt: {
+        lte: now,
+      },
+      saleItems: {
+        none: {},
+      },
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  const candidateIds = candidates.map((product) => product.id)
+
+  if (candidateIds.length === 0) {
+    return {
+      purgedCount: 0,
+      purgedIds: [],
+    }
+  }
+
+  const result = await prisma.product.deleteMany({
+    where: {
+      id: {
+        in: candidateIds,
+      },
+    },
+  })
+
+  return {
+    purgedCount: result.count,
+    purgedIds: candidateIds,
+  }
 }

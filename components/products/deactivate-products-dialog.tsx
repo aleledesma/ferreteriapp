@@ -32,9 +32,9 @@ export function DeactivateProductsDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Desactivar productos seleccionados?</AlertDialogTitle>
+          <AlertDialogTitle>¿Eliminar productos seleccionados?</AlertDialogTitle>
           <AlertDialogDescription>
-            Vas a realizar una eliminación lógica sobre {selectedCount} producto{selectedCount === 1 ? "" : "s"}. Los productos quedarán inactivos y podrán recuperarse más adelante.
+            Se eliminarán {selectedCount} producto{selectedCount === 1 ? "" : "s"} seleccionado{selectedCount === 1 ? "" : "s"}.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -47,7 +47,7 @@ export function DeactivateProductsDialog({
             className="border-destructive/20 bg-transparent text-destructive/80 hover:border-destructive/35 hover:bg-destructive/8 hover:text-destructive"
           >
             {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-            Desactivar productos
+            Eliminar productos
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
