@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
-  Barcode,
   CircleOff,
   Loader2,
   PackageSearch,
@@ -21,6 +20,7 @@ import type {
 } from "@/lib/products/catalog-types"
 import { cn } from "@/lib/utils"
 
+import { ProductBarcodeCard } from "@/components/products/product-barcode-card"
 import { ProductHoverHint } from "@/components/products/product-hover-hint"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -368,12 +368,6 @@ export function ProductDetailSheet({
                     {detail.supplierProductCode}
                   </span>
                 </ProductHoverHint>
-                {detail.barcode ? (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-                    <Barcode className="size-3 shrink-0" />
-                    {detail.barcode}
-                  </span>
-                ) : null}
                 {detail.brand ? (
                   <ProductHoverHint content="Marca asociada al producto.">
                     <span className="cursor-help rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -403,6 +397,13 @@ export function ProductDetailSheet({
                   <p className="w-fit max-w-full cursor-help text-xs leading-relaxed text-muted-foreground/70">
                     {detail.description}
                   </p>
+                </ProductHoverHint>
+              ) : null}
+              {detail.barcode ? (
+                <ProductHoverHint content="Código de barras representado gráficamente junto con su valor numérico.">
+                  <div className="w-fit cursor-help">
+                    <ProductBarcodeCard value={detail.barcode} />
+                  </div>
                 </ProductHoverHint>
               ) : null}
               {detail.deletion.deletedAt ? (
