@@ -21,12 +21,14 @@ import type {
 } from "@/lib/products/catalog-types"
 import { cn } from "@/lib/utils"
 
+import { ProductHoverHint } from "@/components/products/product-hover-hint"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 type ProductDetailSheetProps = {
   productId: string | null
@@ -306,11 +308,12 @@ export function ProductDetailSheet({
   ]
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full max-w-[94vw] flex-col overflow-hidden p-0 md:max-w-[76vw] xl:max-w-[54vw] 2xl:max-w-[46vw]"
-      >
+    <TooltipProvider>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="flex w-full max-w-[94vw] flex-col overflow-hidden p-0 md:max-w-[76vw] xl:max-w-[54vw] 2xl:max-w-[46vw]"
+        >
         {/* Always-present title for screen readers */}
         <SheetTitle className="sr-only">
           {detail?.name ?? "Detalle de producto"}
@@ -356,13 +359,15 @@ export function ProductDetailSheet({
         ) : detail ? (
           <>
             {/* ── Product header (sticky) ── */}
-            <div className="shrink-0 space-y-2 border-b border-border/50 px-6 pr-14 pt-5 pb-4">
+            <div className="shrink-0 space-y-3 border-b border-border/50 px-6 pr-14 pt-5 pb-4">
               {/* Metadata chips */}
               <div className="flex flex-wrap gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-                  <PackageSearch className="size-3 shrink-0" />
-                  {detail.supplierProductCode}
-                </span>
+                <ProductHoverHint content="Código interno del producto según el proveedor actual.">
+                  <span className="inline-flex cursor-help items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                    <PackageSearch className="size-3 shrink-0" />
+                    {detail.supplierProductCode}
+                  </span>
+                </ProductHoverHint>
                 {detail.barcode ? (
                   <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
                     <Barcode className="size-3 shrink-0" />
@@ -370,27 +375,35 @@ export function ProductDetailSheet({
                   </span>
                 ) : null}
                 {detail.brand ? (
-                  <span className="rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {detail.brand}
-                  </span>
+                  <ProductHoverHint content="Marca asociada al producto.">
+                    <span className="cursor-help rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {detail.brand}
+                    </span>
+                  </ProductHoverHint>
                 ) : null}
                 {detail.categoryName ? (
-                  <span className="rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {detail.categoryName}
-                  </span>
+                  <ProductHoverHint content="Categoría operativa usada para clasificar el producto.">
+                    <span className="cursor-help rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {detail.categoryName}
+                    </span>
+                  </ProductHoverHint>
                 ) : null}
               </div>
               {/* Product name */}
               <h2 className="text-xl font-bold leading-snug tracking-tight text-foreground">
                 {detail.name}
               </h2>
-              <p className="text-sm text-muted-foreground">
-                {detail.supplier.name}
-              </p>
-              {detail.description ? (
-                <p className="text-xs leading-relaxed text-muted-foreground/70">
-                  {detail.description}
+              <ProductHoverHint content="Proveedor actualmente vinculado al producto.">
+                <p className="w-fit cursor-help text-sm text-muted-foreground">
+                  {detail.supplier.name}
                 </p>
+              </ProductHoverHint>
+              {detail.description ? (
+                <ProductHoverHint content="Descripción extendida o detalle comercial del producto.">
+                  <p className="w-fit max-w-full cursor-help text-xs leading-relaxed text-muted-foreground/70">
+                    {detail.description}
+                  </p>
+                </ProductHoverHint>
               ) : null}
               {detail.deletion.deletedAt ? (
                 <p className="text-xs font-medium text-destructive/80">
@@ -402,96 +415,102 @@ export function ProductDetailSheet({
             {/* ── Hero strip ── */}
             <div className="shrink-0 grid grid-cols-3 gap-px bg-border/40 border-b border-border/50">
               {/* Stock */}
-              <div
-                className={cn(
-                  "bg-background px-5 py-4",
-                  detail.inventory.stockStatus === "sin_stock" &&
-                    "bg-destructive/[0.035]",
-                  detail.inventory.stockStatus === "stock_bajo" &&
-                    "bg-amber-500/[0.035]",
-                )}
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Stock
-                </p>
-                <p
+              <ProductHoverHint content="Stock actual disponible y umbral mínimo configurado para alertas de reposición.">
+                <div
                   className={cn(
-                    "mt-1.5 text-3xl font-bold tabular-nums leading-none tracking-tight",
+                    "cursor-help bg-background px-5 py-4",
                     detail.inventory.stockStatus === "sin_stock" &&
-                      "text-destructive",
+                      "bg-destructive/[0.035]",
                     detail.inventory.stockStatus === "stock_bajo" &&
-                      "text-amber-600",
-                    detail.inventory.stockStatus === "stock_normal" &&
-                      "text-foreground",
+                      "bg-amber-500/[0.035]",
                   )}
                 >
-                  {detail.inventory.stock}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  mín. {detail.inventory.minStock}
-                </p>
-              </div>
-
-              {/* Price */}
-              <div className="bg-background px-5 py-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Precio venta
-                </p>
-                <p className="mt-1.5 text-xl font-bold tabular-nums leading-tight text-foreground">
-                  {formatCurrency(detail.pricing.salePrice)}
-                </p>
-                <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                  Costo {formatCurrency(detail.pricing.costPrice)}
-                </p>
-              </div>
-
-              {/* Status */}
-              <div className="bg-background px-5 py-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Estado
-                </p>
-                <div className="mt-1.5 space-y-1.5">
-                  <div
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Stock
+                  </p>
+                  <p
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium",
+                      "mt-1.5 text-3xl font-bold tabular-nums leading-none tracking-tight",
                       detail.inventory.stockStatus === "sin_stock" &&
-                        "border-destructive/20 bg-destructive/8 text-destructive",
+                        "text-destructive",
                       detail.inventory.stockStatus === "stock_bajo" &&
-                        "border-amber-500/20 bg-amber-500/10 text-amber-700",
+                        "text-amber-600",
                       detail.inventory.stockStatus === "stock_normal" &&
-                        "border-emerald-500/20 bg-emerald-500/10 text-emerald-700",
+                        "text-foreground",
                     )}
                   >
-                    {detail.inventory.stockStatus === "sin_stock" ? (
-                      <CircleOff className="size-3 shrink-0" />
-                    ) : null}
-                    {detail.inventory.stockStatus === "stock_bajo" ? (
-                      <AlertTriangle className="size-3 shrink-0" />
-                    ) : null}
-                    {detail.inventory.stockStatus === "sin_stock"
-                      ? "Sin stock"
-                      : detail.inventory.stockStatus === "stock_bajo"
-                        ? "Stock bajo"
-                        : "Stock normal"}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <span
+                    {detail.inventory.stock}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    mín. {detail.inventory.minStock}
+                  </p>
+                </div>
+              </ProductHoverHint>
+
+              {/* Price */}
+              <ProductHoverHint content="Precio de venta vigente y precio de costo actualmente guardado para el producto.">
+                <div className="cursor-help bg-background px-5 py-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Precio venta
+                  </p>
+                  <p className="mt-1.5 text-xl font-bold tabular-nums leading-tight text-foreground">
+                    {formatCurrency(detail.pricing.salePrice)}
+                  </p>
+                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                    Costo {formatCurrency(detail.pricing.costPrice)}
+                  </p>
+                </div>
+              </ProductHoverHint>
+
+              {/* Status */}
+              <ProductHoverHint content="Estado operativo del producto, disponibilidad para venta y condición actual del stock.">
+                <div className="cursor-help bg-background px-5 py-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Estado
+                  </p>
+                  <div className="mt-1.5 space-y-1.5">
+                    <div
                       className={cn(
-                        "inline-block size-1.5 shrink-0 rounded-full",
-                        detail.flags.isActive
-                          ? "bg-emerald-500"
-                          : "bg-muted-foreground/40",
+                        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium",
+                        detail.inventory.stockStatus === "sin_stock" &&
+                          "border-destructive/20 bg-destructive/8 text-destructive",
+                        detail.inventory.stockStatus === "stock_bajo" &&
+                          "border-amber-500/20 bg-amber-500/10 text-amber-700",
+                        detail.inventory.stockStatus === "stock_normal" &&
+                          "border-emerald-500/20 bg-emerald-500/10 text-emerald-700",
                       )}
-                    />
-                    {detail.flags.isActive ? "Activo" : "Inactivo"}
-                    {detail.flags.isForSale ? (
-                      <span className="text-muted-foreground/60">
-                        · En venta
-                      </span>
-                    ) : null}
+                    >
+                      {detail.inventory.stockStatus === "sin_stock" ? (
+                        <CircleOff className="size-3 shrink-0" />
+                      ) : null}
+                      {detail.inventory.stockStatus === "stock_bajo" ? (
+                        <AlertTriangle className="size-3 shrink-0" />
+                      ) : null}
+                      {detail.inventory.stockStatus === "sin_stock"
+                        ? "Sin stock"
+                        : detail.inventory.stockStatus === "stock_bajo"
+                          ? "Stock bajo"
+                          : "Stock normal"}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span
+                        className={cn(
+                          "inline-block size-1.5 shrink-0 rounded-full",
+                          detail.flags.isActive
+                            ? "bg-emerald-500"
+                            : "bg-muted-foreground/40",
+                        )}
+                      />
+                      {detail.flags.isActive ? "Activo" : "Inactivo"}
+                      {detail.flags.isForSale ? (
+                        <span className="text-muted-foreground/60">
+                          · En venta
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </ProductHoverHint>
             </div>
 
             {/* ── Tab navigation (sticky) ── */}
@@ -986,7 +1005,8 @@ export function ProductDetailSheet({
             </div>
           </>
         ) : null}
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+    </TooltipProvider>
   )
 }
