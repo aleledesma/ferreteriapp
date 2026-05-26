@@ -18,6 +18,7 @@ import type {
   StockAdjustmentResponse,
   UpdateProductResponse,
 } from "@/lib/products/catalog-types"
+import { getProductStockMovementLabel } from "@/lib/constants/product-stock-movements"
 import { cn } from "@/lib/utils"
 
 import { ProductBarcodeCard } from "@/components/products/product-barcode-card"
@@ -88,6 +89,7 @@ export function ProductDetailSheet({
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<ActiveTab>("summary")
+  const [expandedMovementNotes, setExpandedMovementNotes] = useState<Record<string, boolean>>({})
   const [draft, setDraft] = useState({
     name: "",
     brand: "",
@@ -131,6 +133,13 @@ export function ProductDetailSheet({
       nextStock: String(nextDetail.inventory.stock),
       stockNotes: "",
     })
+  }
+
+  function toggleMovementNote(movementId: string) {
+    setExpandedMovementNotes((current) => ({
+      ...current,
+      [movementId]: !current[movementId],
+    }))
   }
 
   useEffect(() => {
@@ -710,7 +719,7 @@ export function ProductDetailSheet({
                             <div className="min-w-0 flex-1 pt-0.5">
                               <div className="flex items-start justify-between gap-2">
                                 <p className="text-sm font-medium capitalize leading-tight text-foreground">
-                                  {movement.type.replaceAll("_", " ")}
+                                  {getProductStockMovementLabel(movement.type)}
                                 </p>
                                 <span
                                   className={cn(
@@ -741,6 +750,27 @@ export function ProductDetailSheet({
                                     "Sistema"}
                                 </span>
                               </div>
+                              {movement.notes?.trim() ? (
+                                <div className="mt-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
+                                  <p
+                                    className={cn(
+                                      "text-xs leading-relaxed text-muted-foreground",
+                                      !expandedMovementNotes[movement.id] && movement.notes.trim().length > 120 && "line-clamp-2",
+                                    )}
+                                  >
+                                    {movement.notes.trim()}
+                                  </p>
+                                  {movement.notes.trim().length > 120 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleMovementNote(movement.id)}
+                                      className="mt-1.5 text-[11px] font-medium text-primary transition-colors hover:text-primary/80"
+                                    >
+                                      {expandedMovementNotes[movement.id] ? "Ver menos" : "Ver nota completa"}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         ))}
