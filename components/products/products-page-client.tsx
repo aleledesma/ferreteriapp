@@ -1,8 +1,25 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react"
 import Link from "next/link"
-import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react"
+import {
+  ArrowRight,
+  CheckCheck,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -40,7 +57,9 @@ type ProductsPageClientProps = {
   supplierOptions: ProductCatalogSupplierOption[]
 }
 
-function buildInitialFilters(appliedFilters: ProductListResponse["appliedFilters"]) {
+function buildInitialFilters(
+  appliedFilters: ProductListResponse["appliedFilters"],
+) {
   return {
     search: appliedFilters.search ?? "",
     supplierId: appliedFilters.supplierId ?? "all",
@@ -53,14 +72,20 @@ function buildInitialFilters(appliedFilters: ProductListResponse["appliedFilters
   }
 }
 
-const STOCK_STATUS_OPTIONS: Array<{ value: ProductStockStatus | "all"; label: string }> = [
+const STOCK_STATUS_OPTIONS: Array<{
+  value: ProductStockStatus | "all"
+  label: string
+}> = [
   { value: "all", label: "Todo el stock" },
   { value: "sin_stock", label: "Sin stock" },
   { value: "stock_bajo", label: "Stock bajo" },
   { value: "stock_normal", label: "Stock normal" },
 ]
 
-const ACTIVITY_OPTIONS: Array<{ value: ProductActivityStatusFilter; label: string }> = [
+const ACTIVITY_OPTIONS: Array<{
+  value: ProductActivityStatusFilter
+  label: string
+}> = [
   { value: "active", label: "Activos" },
   { value: "inactive", label: "Inactivos" },
   { value: "all", label: "Todos" },
@@ -83,10 +108,14 @@ const SORT_OPTIONS: Array<{ value: ProductSortOption; label: string }> = [
 
 async function fetchCatalog(searchParams: URLSearchParams) {
   const response = await fetch(`/api/products?${searchParams.toString()}`)
-  const payload = (await response.json()) as ProductListResponse & { error?: string }
+  const payload = (await response.json()) as ProductListResponse & {
+    error?: string
+  }
 
   if (!response.ok) {
-    throw new Error(payload.error || "No se pudo cargar el catálogo de productos.")
+    throw new Error(
+      payload.error || "No se pudo cargar el catálogo de productos.",
+    )
   }
 
   return payload
@@ -94,21 +123,31 @@ async function fetchCatalog(searchParams: URLSearchParams) {
 
 async function fetchKpis() {
   const response = await fetch("/api/products/kpis")
-  const payload = (await response.json()) as ProductCatalogKpisResponse & { error?: string }
+  const payload = (await response.json()) as ProductCatalogKpisResponse & {
+    error?: string
+  }
 
   if (!response.ok) {
-    throw new Error(payload.error || "No se pudieron cargar los KPIs del catálogo.")
+    throw new Error(
+      payload.error || "No se pudieron cargar los KPIs del catálogo.",
+    )
   }
 
   return payload
 }
 
-export function ProductsPageClient({ initialCatalog, initialKpis, supplierOptions }: ProductsPageClientProps) {
+export function ProductsPageClient({
+  initialCatalog,
+  initialKpis,
+  supplierOptions,
+}: ProductsPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [catalog, setCatalog] = useState(initialCatalog)
   const [kpis, setKpis] = useState(initialKpis)
-  const [filters, setFilters] = useState(() => buildInitialFilters(initialCatalog.appliedFilters))
+  const [filters, setFilters] = useState(() =>
+    buildInitialFilters(initialCatalog.appliedFilters),
+  )
   const [isPending, startTransition] = useTransition()
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -171,14 +210,21 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   const buildParamsFromFilters = useCallback((nextFilters: typeof filters) => {
     const params = new URLSearchParams()
 
-    if (nextFilters.search.trim()) params.set("search", nextFilters.search.trim())
-    if (nextFilters.supplierId !== "all") params.set("supplierId", nextFilters.supplierId)
-    if (nextFilters.category.trim()) params.set("category", nextFilters.category.trim())
+    if (nextFilters.search.trim())
+      params.set("search", nextFilters.search.trim())
+    if (nextFilters.supplierId !== "all")
+      params.set("supplierId", nextFilters.supplierId)
+    if (nextFilters.category.trim())
+      params.set("category", nextFilters.category.trim())
     if (nextFilters.brand.trim()) params.set("brand", nextFilters.brand.trim())
-    if (nextFilters.stockStatus !== "all") params.set("stockStatus", nextFilters.stockStatus)
-    if (nextFilters.activityStatus !== "active") params.set("activityStatus", nextFilters.activityStatus)
-    if (nextFilters.saleStatus !== "all") params.set("saleStatus", nextFilters.saleStatus)
-    if (nextFilters.sort !== "critical_stock") params.set("sort", nextFilters.sort)
+    if (nextFilters.stockStatus !== "all")
+      params.set("stockStatus", nextFilters.stockStatus)
+    if (nextFilters.activityStatus !== "active")
+      params.set("activityStatus", nextFilters.activityStatus)
+    if (nextFilters.saleStatus !== "all")
+      params.set("saleStatus", nextFilters.saleStatus)
+    if (nextFilters.sort !== "critical_stock")
+      params.set("sort", nextFilters.sort)
     params.set("limit", "100")
 
     return params
@@ -223,7 +269,8 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       }))
     } catch (error) {
       toast.error("No se pudo cargar más productos", {
-        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+        description:
+          error instanceof Error ? error.message : "Inténtalo nuevamente.",
       })
     } finally {
       setIsLoadingMore(false)
@@ -252,7 +299,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   function toggleAllVisible(checked: boolean) {
     setSelectedIds((current) => {
       if (!checked) {
-        return current.filter((id) => !catalog.items.some((item) => item.id === id))
+        return current.filter(
+          (id) => !catalog.items.some((item) => item.id === id),
+        )
       }
 
       const merged = new Set(current)
@@ -294,10 +343,14 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
         body: JSON.stringify({ productIds: selectedIds }),
       })
 
-      const payload = (await response.json()) as DeactivateProductsResponse & { error?: string }
+      const payload = (await response.json()) as DeactivateProductsResponse & {
+        error?: string
+      }
 
       if (!response.ok) {
-        throw new Error(payload.error || "No se pudieron eliminar los productos.")
+        throw new Error(
+          payload.error || "No se pudieron eliminar los productos.",
+        )
       }
 
       await refreshCatalogWithCurrentFilters()
@@ -318,44 +371,53 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
       })
     } catch (error) {
       toast.error("No se pudieron eliminar los productos", {
-        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+        description:
+          error instanceof Error ? error.message : "Inténtalo nuevamente.",
       })
     } finally {
       setIsDeactivating(false)
     }
   }
 
-  const restoreDeletedProducts = useCallback(async (productIds: string[]) => {
-    if (productIds.length === 0) {
-      return
-    }
-
-    try {
-      const response = await fetch("/api/products/restore", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ productIds }),
-      })
-
-      const payload = (await response.json()) as RestoreProductsResponse & { error?: string }
-
-      if (!response.ok) {
-        throw new Error(payload.error || "No se pudieron restaurar los productos.")
+  const restoreDeletedProducts = useCallback(
+    async (productIds: string[]) => {
+      if (productIds.length === 0) {
+        return
       }
 
-      await refreshCatalogWithCurrentFilters()
-      setLastDeletedBatch(null)
-      toast.success("Eliminación revertida", {
-        description: `${payload.processedCount} producto${payload.processedCount === 1 ? "" : "s"} restaurado${payload.processedCount === 1 ? "" : "s"}.`,
-      })
-    } catch (error) {
-      toast.error("No se pudo revertir la eliminación", {
-        description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
-      })
-    }
-  }, [refreshCatalogWithCurrentFilters])
+      try {
+        const response = await fetch("/api/products/restore", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ productIds }),
+        })
+
+        const payload = (await response.json()) as RestoreProductsResponse & {
+          error?: string
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            payload.error || "No se pudieron restaurar los productos.",
+          )
+        }
+
+        await refreshCatalogWithCurrentFilters()
+        setLastDeletedBatch(null)
+        toast.success("Eliminación revertida", {
+          description: `${payload.processedCount} producto${payload.processedCount === 1 ? "" : "s"} restaurado${payload.processedCount === 1 ? "" : "s"}.`,
+        })
+      } catch (error) {
+        toast.error("No se pudo revertir la eliminación", {
+          description:
+            error instanceof Error ? error.message : "Inténtalo nuevamente.",
+        })
+      }
+    },
+    [refreshCatalogWithCurrentFilters],
+  )
 
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -371,7 +433,8 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
         setSelectedIds([])
       } catch (error) {
         toast.error("No se pudo actualizar el catálogo", {
-          description: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+          description:
+            error instanceof Error ? error.message : "Inténtalo nuevamente.",
         })
       }
     })
@@ -389,7 +452,8 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
 
   useEffect(() => {
     function handleUndo(event: KeyboardEvent) {
-      const isUndoShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z"
+      const isUndoShortcut =
+        (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z"
       if (!isUndoShortcut || !lastDeletedBatch) {
         return
       }
@@ -429,39 +493,22 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
               Productos
             </h1>
             <p className="max-w-[46rem] pt-0.5 text-sm leading-relaxed text-muted-foreground">
-              Supervisá el inventario real, priorizá faltantes y mantené a mano la información clave de cada producto sin salir del flujo del catálogo.
+              Supervisá el inventario real, priorizá faltantes y mantené a mano
+              la información clave de cada producto sin salir del flujo del
+              catálogo.
             </p>
           </div>
 
-          <Button asChild size="lg" className="h-12 w-full gap-2 px-5 text-sm font-semibold shadow-md xl:w-auto">
+          <Button
+            asChild
+            size="lg"
+            className="h-12 w-full gap-2 px-5 text-sm font-semibold shadow-md xl:w-auto"
+          >
             <Link href="/products/new">
               <Plus className="size-4" />
-              Ir a carga de productos
+              Cargar nuevos productos
             </Link>
           </Button>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_14%,transparent),transparent_62%),linear-gradient(180deg,color-mix(in_oklab,var(--color-muted)_36%,transparent),transparent)] shadow-sm">
-          <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary/80">
-                Incorporación rápida
-              </p>
-              <h2 className="text-lg font-semibold text-foreground">
-                ¿Necesitas cargar una lista nueva o sumar productos manualmente?
-              </h2>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Accede al flujo de carga masiva o manual para incorporar productos nuevos, definir listas por proveedor y preparar el catálogo para ventas.
-              </p>
-            </div>
-
-            <Button asChild className="h-11 shrink-0 gap-2 self-start px-5 font-semibold lg:self-center">
-              <Link href="/products/new">
-                Abrir carga de productos
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -479,7 +526,12 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={filters.search}
-                  onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      search: event.target.value,
+                    }))
+                  }
                   placeholder="Buscar por nombre, código, marca o proveedor…"
                   className="h-9 pl-9"
                 />
@@ -508,7 +560,12 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
 
               <Select
                 value={filters.sort}
-                onValueChange={(value) => setFilters((current) => ({ ...current, sort: value as ProductSortOption }))}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    sort: value as ProductSortOption,
+                  }))
+                }
               >
                 <SelectTrigger className="h-9 w-[200px] shrink-0 text-sm">
                   <SelectValue placeholder="Ordenar por…" />
@@ -541,7 +598,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
               <div className="mt-4 grid gap-2.5 border-t border-border/50 pt-4 sm:grid-cols-2 xl:grid-cols-3">
                 <Select
                   value={filters.supplierId}
-                  onValueChange={(value) => setFilters((current) => ({ ...current, supplierId: value }))}
+                  onValueChange={(value) =>
+                    setFilters((current) => ({ ...current, supplierId: value }))
+                  }
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="Todos los proveedores" />
@@ -558,14 +617,24 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
 
                 <Input
                   value={filters.category}
-                  onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      category: event.target.value,
+                    }))
+                  }
                   placeholder="Categoría"
                   className="h-9 text-sm"
                 />
 
                 <Input
                   value={filters.brand}
-                  onChange={(event) => setFilters((current) => ({ ...current, brand: event.target.value }))}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      brand: event.target.value,
+                    }))
+                  }
                   placeholder="Marca"
                   className="h-9 text-sm"
                 />
@@ -573,7 +642,10 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 <Select
                   value={filters.stockStatus}
                   onValueChange={(value) =>
-                    setFilters((current) => ({ ...current, stockStatus: value as ProductStockStatus | "all" }))
+                    setFilters((current) => ({
+                      ...current,
+                      stockStatus: value as ProductStockStatus | "all",
+                    }))
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
@@ -591,7 +663,10 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 <Select
                   value={filters.activityStatus}
                   onValueChange={(value) =>
-                    setFilters((current) => ({ ...current, activityStatus: value as ProductActivityStatusFilter }))
+                    setFilters((current) => ({
+                      ...current,
+                      activityStatus: value as ProductActivityStatusFilter,
+                    }))
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
@@ -609,7 +684,10 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 <Select
                   value={filters.saleStatus}
                   onValueChange={(value) =>
-                    setFilters((current) => ({ ...current, saleStatus: value as ProductSaleStatusFilter }))
+                    setFilters((current) => ({
+                      ...current,
+                      saleStatus: value as ProductSaleStatusFilter,
+                    }))
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
@@ -631,18 +709,23 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 bg-muted/10 px-4 py-2.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>
-                <span className="font-semibold tabular-nums text-foreground">{catalog.items.length}</span>{" "}
-                producto{catalog.items.length !== 1 ? "s" : ""} cargado{catalog.items.length !== 1 ? "s" : ""}
+                <span className="font-semibold tabular-nums text-foreground">
+                  {catalog.items.length}
+                </span>{" "}
+                producto{catalog.items.length !== 1 ? "s" : ""} cargado
+                {catalog.items.length !== 1 ? "s" : ""}
               </span>
               {selectedIds.length > 0 ? (
                 <span className="flex items-center gap-1.5">
                   <CheckCheck className="size-3.5 text-primary" />
                   <span className="font-semibold text-primary">
-                    {selectedIds.length} seleccionado{selectedIds.length !== 1 ? "s" : ""}
+                    {selectedIds.length} seleccionado
+                    {selectedIds.length !== 1 ? "s" : ""}
                   </span>
                   {selectedVisibleCount !== selectedIds.length ? (
                     <span className="text-muted-foreground/70">
-                      · {selectedVisibleCount} visible{selectedVisibleCount !== 1 ? "s" : ""}
+                      · {selectedVisibleCount} visible
+                      {selectedVisibleCount !== 1 ? "s" : ""}
                     </span>
                   ) : null}
                 </span>
@@ -682,7 +765,8 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
 
         {/* Accessibility live region */}
         <div aria-live="polite" className="sr-only">
-          {catalog.items.length} productos visibles. {selectedIds.length} productos seleccionados.
+          {catalog.items.length} productos visibles. {selectedIds.length}{" "}
+          productos seleccionados.
         </div>
 
         {/* Table area */}
@@ -708,7 +792,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 onClick={() => void handleLoadMore()}
                 disabled={!catalog.pageInfo.hasMore || isLoadingMore}
               >
-                {isLoadingMore ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {isLoadingMore ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : null}
                 {isLoadingMore
                   ? "Cargando…"
                   : catalog.pageInfo.hasMore
@@ -723,7 +809,9 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
         ) : (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/5 px-6 py-16 text-center">
             <p className="text-base font-semibold text-foreground">
-              {activeFilterCount > 0 ? "Sin resultados para estos filtros" : "El catálogo está vacío"}
+              {activeFilterCount > 0
+                ? "Sin resultados para estos filtros"
+                : "El catálogo está vacío"}
             </p>
             <p className="mx-auto mt-2 max-w-[30rem] text-sm leading-relaxed text-muted-foreground">
               {activeFilterCount > 0
@@ -731,7 +819,13 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
                 : "Cargá productos desde el flujo de incorporación para comenzar a poblar el catálogo."}
             </p>
             {activeFilterCount > 0 ? (
-              <Button type="button" variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={resetFilters}
+              >
                 Limpiar filtros
               </Button>
             ) : null}
@@ -752,7 +846,10 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
             body: JSON.stringify({ productIds: [productId] }),
           })
 
-          const payload = (await response.json()) as DeactivateProductsResponse & { error?: string }
+          const payload =
+            (await response.json()) as DeactivateProductsResponse & {
+              error?: string
+            }
 
           if (!response.ok) {
             throw new Error(payload.error || "No se pudo eliminar el producto.")
