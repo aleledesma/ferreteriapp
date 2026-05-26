@@ -1,9 +1,15 @@
 export type RawSpreadsheetRow = Record<string, string | number | boolean | null>
 
+export type SupplierPricingImportSettings = {
+  saleMarginPercentage: number
+  keepExistingSalePrice: boolean
+}
+
 export type SupplierUploadBatch = {
   supplierName: string
   sourceFileName: string
   uploadedByUserId: string
+  pricing: SupplierPricingImportSettings
   rows: RawSpreadsheetRow[]
 }
 
@@ -12,6 +18,8 @@ export type N8nIngestPayload = Array<{
   metadata: {
     sourceFileName: string
     uploadedByUserId: string
+    saleMarginPercentage: number
+    keepExistingSalePrice: boolean
   }
   productos: RawSpreadsheetRow[]
 }>
@@ -54,6 +62,8 @@ export type N8nNormalizationResponse = {
 export type SupplierImportContext = {
   sourceFileName?: string
   uploadedByUserId?: string
+  saleMarginPercentage?: number
+  keepExistingSalePrice?: boolean
 }
 
 export type PersistNormalizedImportInput = {

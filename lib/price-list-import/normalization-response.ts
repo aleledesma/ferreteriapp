@@ -80,6 +80,8 @@ export function mapSupplierUploadBatchesToN8nPayload(
     metadata: {
       sourceFileName: supplierBatches.map((batch) => batch.sourceFileName).join(" | "),
       uploadedByUserId: supplierBatches[0]?.uploadedByUserId ?? "",
+      saleMarginPercentage: supplierBatches[0]?.pricing.saleMarginPercentage ?? 0,
+      keepExistingSalePrice: supplierBatches[0]?.pricing.keepExistingSalePrice ?? true,
     },
     productos: supplierBatches.flatMap((batch) => batch.rows),
   }))
@@ -122,7 +124,12 @@ export function normalizeN8nResponse(payload: unknown): N8nNormalizationResponse
     traceId: normalizeNullableString(raw.traceId),
     supplierContexts:
       raw.supplierContexts && typeof raw.supplierContexts === "object" && !Array.isArray(raw.supplierContexts)
-        ? (raw.supplierContexts as Record<string, { sourceFileName?: string; uploadedByUserId?: string }>)
+        ? (raw.supplierContexts as Record<string, {
+            sourceFileName?: string
+            uploadedByUserId?: string
+            saleMarginPercentage?: number
+            keepExistingSalePrice?: boolean
+          }>)
         : undefined,
     totalProviders:
       typeof raw.totalProviders === "number" && Number.isFinite(raw.totalProviders)

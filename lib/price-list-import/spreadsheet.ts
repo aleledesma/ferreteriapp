@@ -139,12 +139,38 @@ type BuildSupplierUploadBatchesInput = {
   uploadedByUserId: string
 }
 
+function parseNonNegativeNumber(value: FormDataEntryValue | null, fallback: number) {
+  if (typeof value !== "string") {
+    return fallback
+  }
+
+  const parsed = Number(value.trim())
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return parsed
+}
+
+function parseBoolean(value: FormDataEntryValue | null, fallback: boolean) {
+  if (typeof value !== "string") {
+    return fallback
+  }
+
+  if (value === "true") return true
+  if (value === "false") return false
+
+  return fallback
+}
+
 export async function buildSupplierUploadBatches({
   formData,
   uploadedByUserId,
 }: BuildSupplierUploadBatchesInput): Promise<SupplierUploadBatch[]> {
   const files = formData.getAll("files")
   const supplierNames = formData.getAll("supplierNames")
+  const saleMarginPercentages = formData.getAll("saleMarginPercentages")
+  const keepExistingSalePrices = formData.getAll("keepExistingSalePrices")
 
   if (!files.length) {
     throw new Error("Debes enviar al menos un archivo.")
@@ -152,6 +178,14 @@ export async function buildSupplierUploadBatches({
 
   if (files.length !== supplierNames.length) {
     throw new Error("Cada archivo debe tener un nombre de proveedor asociado.")
+  }
+
+  if (saleMarginPercentages.length > 0 && saleMarginPercentages.length !== files.length) {
+    throw new Error("Cada archivo debe tener un margen de ganancia asociado.")
+  }
+
+  if (keepExistingSalePrices.length > 0 && keepExistingSalePrices.length !== files.length) {
+    throw new Error("Cada archivo debe indicar cómo tratar el precio de venta existente.")
   }
 
   const batches: SupplierUploadBatch[] = []
@@ -169,6 +203,8 @@ export async function buildSupplierUploadBatches({
     }
 
     const normalizedSupplierName = supplierName.trim()
+    const saleMarginPercentage = parseNonNegativeNumber(saleMarginPercentages[index] ?? null, 0)
+    const keepExistingSalePrice = parseBoolean(keepExistingSalePrices[index] ?? null, true)
 
     const rows = await parseSpreadsheetFile(file)
     if (!rows.length) {
@@ -179,6 +215,10 @@ export async function buildSupplierUploadBatches({
       supplierName: normalizedSupplierName,
       sourceFileName: file.name,
       uploadedByUserId,
+      pricing: {
+        saleMarginPercentage,
+        keepExistingSalePrice,
+      },
       rows,
     })
   }

@@ -24,7 +24,57 @@ function resolveProductName(product: NormalizedProduct) {
 }
 
 function resolveProductCost(product: NormalizedProduct) {
-  return toNullableNumber(product.offerPrice) ?? toNullableNumber(product.listPrice)
+  const listPrice = toNullableNumber(product.listPrice)
+  const offerPrice = toNullableNumber(product.offerPrice)
+
+  if (listPrice !== null && offerPrice !== null) {
+    return Math.min(listPrice, offerPrice)
+  }
+
+  return offerPrice ?? listPrice
+}
+
+function resolveProvidedSalePrice(product: NormalizedProduct) {
+  const listPrice = toNullableNumber(product.listPrice)
+  const offerPrice = toNullableNumber(product.offerPrice)
+
+  if (listPrice === null || offerPrice === null) {
+    return null
+  }
+
+  if (listPrice === offerPrice) {
+    return null
+  }
+
+  return Math.max(listPrice, offerPrice)
+}
+
+function roundCurrency(value: number) {
+  return Number(value.toFixed(2))
+}
+
+function resolveSalePrice({
+  product,
+  costPrice,
+  context,
+}: {
+  product: NormalizedProduct
+  costPrice: number
+  context?: SupplierImportContext
+}) {
+  const marginPercentage =
+    typeof context?.saleMarginPercentage === "number" && Number.isFinite(context.saleMarginPercentage)
+      ? context.saleMarginPercentage
+      : 0
+  const keepExistingSalePrice = context?.keepExistingSalePrice !== false
+  const calculatedSalePrice = roundCurrency(costPrice * (1 + marginPercentage / 100))
+  const providedSalePrice = resolveProvidedSalePrice(product)
+
+  if (keepExistingSalePrice && providedSalePrice !== null) {
+    return providedSalePrice
+  }
+
+  return calculatedSalePrice
 }
 
 function resolveProductDescription(product: NormalizedProduct) {
@@ -110,7 +160,7 @@ export async function persistNormalizedSupplierGroup({
   return prisma.$transaction(async (tx) => {
     const supplier = await getOrCreateSupplier(tx, supplierName)
 
-    const priceList = await tx.supplierPriceList.create({
+      const priceList = await tx.supplierPriceList.create({
       data: {
         supplierId: supplier.id,
         uploadedByUserId: context?.uploadedByUserId,
@@ -126,23 +176,28 @@ export async function persistNormalizedSupplierGroup({
     let itemsImported = 0
     let itemsSkipped = 0
 
-    const candidates = products
-      .map((product) => {
-        const supplierProductCode = resolveSupplierProductCode(product)
-        const name = resolveProductName(product)
-        const costPrice = resolveProductCost(product)
+      const candidates = products
+        .map((product) => {
+          const supplierProductCode = resolveSupplierProductCode(product)
+          const name = resolveProductName(product)
+          const costPrice = resolveProductCost(product)
 
         if (!supplierProductCode || !name || costPrice === null) {
           return null
         }
 
-        return {
-          product,
-          supplierProductCode,
-          name,
-          costPrice,
-        }
-      })
+          return {
+            product,
+            supplierProductCode,
+            name,
+            costPrice,
+            salePrice: resolveSalePrice({
+              product,
+              costPrice,
+              context,
+            }),
+          }
+        })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 
     itemsSkipped += products.length - candidates.length
@@ -178,13 +233,13 @@ export async function persistNormalizedSupplierGroup({
       if (existingProduct) {
         const updatedProduct = await tx.product.update({
           where: { id: existingProduct.id },
-          data: buildProductUpdateData(
-            candidate.product,
-            priceList.id,
-            candidate.costPrice,
-            existingProduct.salePrice,
-            candidate.name,
-          ),
+            data: buildProductUpdateData(
+              candidate.product,
+              priceList.id,
+              candidate.costPrice,
+              candidate.salePrice,
+              candidate.name,
+            ),
           select: {
             id: true,
             salePrice: true,
@@ -204,13 +259,13 @@ export async function persistNormalizedSupplierGroup({
         data: {
           supplierId: supplier.id,
           supplierProductCode: candidate.supplierProductCode,
-          ...buildProductUpdateData(
-            candidate.product,
-            priceList.id,
-            candidate.costPrice,
-            candidate.costPrice,
-            candidate.name,
-          ),
+            ...buildProductUpdateData(
+              candidate.product,
+              priceList.id,
+              candidate.costPrice,
+              candidate.salePrice,
+              candidate.name,
+            ),
         },
         select: {
           id: true,

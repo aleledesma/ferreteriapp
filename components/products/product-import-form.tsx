@@ -15,6 +15,8 @@ import { toast } from "sonner"
 import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
@@ -23,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import type {
   SupplierListItem,
@@ -37,6 +40,8 @@ type UploadFileEntry = {
 type SupplierUploadGroup = {
   id: string
   supplierId: string
+  saleMarginPercentage: string
+  keepExistingSalePrice: boolean
   files: UploadFileEntry[]
 }
 
@@ -68,6 +73,8 @@ function createSupplierGroup(): SupplierUploadGroup {
   return {
     id: crypto.randomUUID(),
     supplierId: "",
+    saleMarginPercentage: "0",
+    keepExistingSalePrice: true,
     files: [],
   }
 }
@@ -160,6 +167,14 @@ export function ProductImportForm() {
     )
   }
 
+  function updateGroupPricing(groupId: string, next: Partial<Pick<SupplierUploadGroup, "saleMarginPercentage" | "keepExistingSalePrice">>) {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId ? { ...group, ...next } : group,
+      ),
+    )
+  }
+
   function removeFile(groupId: string, fileId: string) {
     setGroups((current) =>
       current.map((group) =>
@@ -231,6 +246,8 @@ export function ProductImportForm() {
       group.files.forEach((entry) => {
         formData.append("files", entry.file)
         formData.append("supplierNames", supplier.name)
+        formData.append("saleMarginPercentages", group.saleMarginPercentage.trim() || "0")
+        formData.append("keepExistingSalePrices", String(group.keepExistingSalePrice))
       })
     })
 
@@ -401,14 +418,65 @@ export function ProductImportForm() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => openCreateSupplier(group.id)}
-                        >
-                          <Plus className="size-4" />
-                          Nuevo proveedor
-                        </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => openCreateSupplier(group.id)}
+                          >
+                            <Plus className="size-4" />
+                            Nuevo proveedor
+                          </Button>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="space-y-1.5">
+                            <p className="text-sm font-medium text-foreground">Regla de precio de venta</p>
+                            <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                              Define el porcentaje de ganancia a aplicar sobre el precio de costo durante la carga masiva. Si la lista ya trae un precio de venta, puedes conservarlo o forzar el recálculo con el margen indicado.
+                            </p>
+                          </div>
+
+                          <div className="grid gap-4 lg:min-w-[320px]">
+                            <div className="space-y-2">
+                              <Label htmlFor={`group-margin-${group.id}`}>Margen de ganancia (%)</Label>
+                              <Input
+                                id={`group-margin-${group.id}`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={group.saleMarginPercentage}
+                                onChange={(event) =>
+                                  updateGroupPricing(group.id, {
+                                    saleMarginPercentage: event.target.value,
+                                  })
+                                }
+                                placeholder="Ej. 35"
+                                className="bg-background"
+                              />
+                            </div>
+
+                            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/60 bg-background/80 px-4 py-3">
+                              <div className="space-y-1">
+                                <Label htmlFor={`group-keep-sale-price-${group.id}`} className="cursor-pointer">
+                                  Si la lista trae precio de venta, mantenerlo
+                                </Label>
+                                <p className="text-xs leading-relaxed text-muted-foreground">
+                                  Si desactivas esta opción, el sistema recalculará el precio de venta usando el precio de costo y el margen configurado arriba.
+                                </p>
+                              </div>
+                              <Switch
+                                id={`group-keep-sale-price-${group.id}`}
+                                checked={group.keepExistingSalePrice}
+                                onCheckedChange={(checked) =>
+                                  updateGroupPricing(group.id, {
+                                    keepExistingSalePrice: checked,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <div
