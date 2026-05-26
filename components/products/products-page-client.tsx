@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { CheckCheck, ChevronDown, ChevronUp, Loader2, Search, SlidersHorizontal, X } from "lucide-react"
+import Link from "next/link"
+import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -418,16 +419,50 @@ export function ProductsPageClient({ initialCatalog, initialKpis, supplierOption
   return (
     <div className="space-y-8 animate-in fade-in-0 slide-in-from-top-2 duration-500">
       {/* Page header */}
-      <div className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Inventario · Catálogo operativo
-        </p>
-        <h1 className="text-4xl font-bold leading-none tracking-tight text-foreground md:text-[2.75rem]">
-          Productos
-        </h1>
-        <p className="max-w-[46rem] pt-0.5 text-sm leading-relaxed text-muted-foreground">
-          Supervisá el inventario real, priorizá faltantes y mantené a mano la información clave de cada producto sin salir del flujo del catálogo.
-        </p>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Inventario · Catálogo operativo
+            </p>
+            <h1 className="text-4xl font-bold leading-none tracking-tight text-foreground md:text-[2.75rem]">
+              Productos
+            </h1>
+            <p className="max-w-[46rem] pt-0.5 text-sm leading-relaxed text-muted-foreground">
+              Supervisá el inventario real, priorizá faltantes y mantené a mano la información clave de cada producto sin salir del flujo del catálogo.
+            </p>
+          </div>
+
+          <Button asChild size="lg" className="h-12 w-full gap-2 px-5 text-sm font-semibold shadow-md xl:w-auto">
+            <Link href="/products/new">
+              <Plus className="size-4" />
+              Ir a carga de productos
+            </Link>
+          </Button>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_14%,transparent),transparent_62%),linear-gradient(180deg,color-mix(in_oklab,var(--color-muted)_36%,transparent),transparent)] shadow-sm">
+          <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary/80">
+                Incorporación rápida
+              </p>
+              <h2 className="text-lg font-semibold text-foreground">
+                ¿Necesitas cargar una lista nueva o sumar productos manualmente?
+              </h2>
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Accede al flujo de carga masiva o manual para incorporar productos nuevos, definir listas por proveedor y preparar el catálogo para ventas.
+              </p>
+            </div>
+
+            <Button asChild className="h-11 shrink-0 gap-2 self-start px-5 font-semibold lg:self-center">
+              <Link href="/products/new">
+                Abrir carga de productos
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* KPI strip */}
