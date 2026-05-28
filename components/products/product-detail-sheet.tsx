@@ -1,13 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlertTriangle,
+  ArrowRight,
   CircleOff,
   Loader2,
   PackageSearch,
   PencilLine,
   ShoppingBag,
+  ShoppingCart,
   Trash2,
   Warehouse,
 } from "lucide-react"
@@ -82,6 +85,7 @@ export function ProductDetailSheet({
   onProductChanged,
   onDeleteProduct,
 }: ProductDetailSheetProps) {
+  const router = useRouter()
   const onOpenChangeRef = useRef(onOpenChange)
   const [detail, setDetail] = useState<ProductDetailResponse["product"] | null>(
     null,
@@ -420,6 +424,47 @@ export function ProductDetailSheet({
                   Marcado para eliminación hasta {formatDateTime(detail.deletion.deleteExpiresAt)}
                 </p>
               ) : null}
+              <div className="pt-1">
+                {detail.flags.isActive && detail.flags.isForSale && detail.inventory.stock > 0 && !detail.flags.isDeleted ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenChange(false)
+                      router.push(`/sales/new?productId=${encodeURIComponent(detail.id)}`)
+                    }}
+                    className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border/60 bg-background px-4 py-3 text-left transition-all hover:border-[#3d6aff]/40 hover:bg-[rgba(61,106,255,0.04)] active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[rgba(61,106,255,0.08)]">
+                        <ShoppingCart className="size-4 text-[#3d6aff]" />
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-semibold text-foreground">
+                          Iniciar venta con este producto
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Se cargará directo al carrito de mostrador
+                        </p>
+                      </div>
+                    </div>
+                    <ArrowRight className="size-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-[#3d6aff]" />
+                  </button>
+                ) : (
+                  <div className="flex w-full items-center gap-3 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 opacity-60">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <ShoppingCart className="size-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-semibold text-foreground">
+                        No disponible para venta
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        El producto está inactivo, sin stock o no habilitado.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* ── Hero strip ── */}
