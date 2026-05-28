@@ -33,6 +33,7 @@ export function CustomerSearch({ onSelectCustomer }: CustomerSearchProps) {
         const searchParams = new URLSearchParams({
           page: "1",
           pageSize: "5",
+          activeOnly: "true",
           search: debouncedSearch.trim()
         })
 

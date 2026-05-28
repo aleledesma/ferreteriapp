@@ -36,6 +36,7 @@ export function parseCustomerFilters(searchParams: URLSearchParams): CustomerFil
 
   return {
     search: normalizeNullableText(searchParams.get("search") || undefined) ?? undefined,
+    activeOnly: searchParams.get("activeOnly") === "true",
     page,
     pageSize,
   }

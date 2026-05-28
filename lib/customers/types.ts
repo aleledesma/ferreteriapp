@@ -1,5 +1,6 @@
 export type CustomerFilters = {
   search?: string
+  activeOnly?: boolean
   page: number
   pageSize: number
 }

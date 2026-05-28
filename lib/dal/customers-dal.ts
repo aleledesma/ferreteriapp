@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 import type {
   CustomerDeleteResult,
   CustomerFilters,
@@ -40,16 +41,25 @@ function toCustomerListItem(
 }
 
 export async function listCustomers(filters: CustomerFilters): Promise<CustomerListResult> {
-  const where = filters.search
-    ? {
-        OR: [
-          { firstName: { contains: filters.search, mode: "insensitive" as const } },
-          { lastName: { contains: filters.search, mode: "insensitive" as const } },
-          { email: { contains: filters.search, mode: "insensitive" as const } },
-          { phone: { contains: filters.search, mode: "insensitive" as const } },
-        ],
-      }
-    : undefined
+  const conditions: Prisma.CustomerWhereInput[] = []
+
+  if (filters.activeOnly) {
+    conditions.push({ isActive: true })
+  }
+
+  if (filters.search) {
+    conditions.push({
+      OR: [
+        { firstName: { contains: filters.search, mode: "insensitive" } },
+        { lastName: { contains: filters.search, mode: "insensitive" } },
+        { email: { contains: filters.search, mode: "insensitive" } },
+        { phone: { contains: filters.search, mode: "insensitive" } },
+      ],
+    })
+  }
+
+  const where: Prisma.CustomerWhereInput | undefined =
+    conditions.length > 0 ? { AND: conditions } : undefined
 
   const [total, customers] = await Promise.all([
     prisma.customer.count({ where }),
