@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server"
 import { getAuthorizedApiUser } from "@/lib/auth/api-guards"
 import { prisma } from "@/lib/prisma"
-import { StockMovementType } from "@prisma/client"
+import { Prisma, StockMovementType } from "@prisma/client"
 
 export async function POST(request: Request) {
   // 1. Verificamos que el cajero tenga permisos
@@ -109,6 +109,15 @@ export async function POST(request: Request) {
 
 // GET: LISTAR E HISTORIAL DE VENTAS (EL FILTRADO)
 export async function GET(request: Request) {
+  const authorization = await getAuthorizedApiUser(["ACTIVE", "ADMIN"])
+
+  if ("error" in authorization) {
+    return NextResponse.json(
+      { error: "No autorizado." },
+      { status: authorization.error === "UNAUTHENTICATED" ? 401 : 403 }
+    )
+  }
+
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get("page") || "1")
   const search = searchParams.get("search") || ""
@@ -118,7 +127,7 @@ export async function GET(request: Request) {
   const limit = 10
   const skip = (page - 1) * limit
 
-  const whereClause: any = { AND: [] }
+  const whereClause: Prisma.SaleWhereInput = { AND: [] }
 
   if (search) {
     whereClause.AND.push({
