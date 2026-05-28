@@ -48,7 +48,7 @@ function parseCreateSaleInput(payload: unknown): CreateSaleInput {
       throw new SaleInputError("El carrito contiene productos duplicados.")
     }
 
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity <= 0) {
       throw new SaleInputError("La cantidad de cada producto debe ser un entero positivo.")
     }
 
