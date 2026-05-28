@@ -224,19 +224,17 @@ export async function GET(request: Request) {
       conditions.push({
         OR: [
           { id: { contains: search, mode: "insensitive" } },
-          { customer: { lastName: { contains: search, mode: "insensitive" } } },
+          { customer: { lastName:  { contains: search, mode: "insensitive" } } },
+          { customer: { firstName: { contains: search, mode: "insensitive" } } },
         ],
       })
     }
 
-    // Filtro de fechas (Calendario)
-    if (startDate && endDate) {
-      conditions.push({
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      })
+    if (startDate || endDate) {
+      const range: Prisma.DateTimeFilter = {}
+      if (startDate) range.gte = startDate
+      if (endDate)   range.lte = endDate
+      conditions.push({ createdAt: range })
     }
 
     const whereClause: Prisma.SaleWhereInput = conditions.length > 0 ? { AND: conditions } : {}
