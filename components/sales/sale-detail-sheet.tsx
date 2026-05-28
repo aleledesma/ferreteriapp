@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
-import { Receipt, Printer, Loader2, Package, Calendar, User } from "lucide-react"
+import { Receipt, Printer, Loader2, Calendar, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 
 type SaleDetailSheetProps = {
   saleId: string | null
@@ -12,8 +11,28 @@ type SaleDetailSheetProps = {
   onOpenChange: (open: boolean) => void
 }
 
+type SaleDetail = {
+  id: string
+  createdAt: string
+  subtotal: number | string
+  total: number | string
+  customer: {
+    firstName: string
+    lastName: string
+  } | null
+  items: Array<{
+    id: string
+    quantity: number
+    unitPrice: number | string
+    subtotal: number | string
+    product: {
+      name: string
+    }
+  }>
+}
+
 export function SaleDetailSheet({ saleId, open, onOpenChange }: SaleDetailSheetProps) {
-  const [sale, setSale] = useState<any>(null)
+  const [sale, setSale] = useState<SaleDetail | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -42,13 +61,9 @@ const handlePrint = () => {
   const horaDoc = fecha.getHours().toString().padStart(2, '0') + fecha.getMinutes().toString().padStart(2, '0');
   const ticketCod = sale.id.slice(-8).toUpperCase();
   
-  const nombreCliente = sale.customer 
-    ? `${sale.customer.lastName}_${sale.customer.firstName}`.replace(/\s+/g, '_') 
-    : "Consumidor_Final";
-
   const tituloArchivo = `Ticket_${fechaDoc}_${horaDoc}_${ticketCod}`;
 
-  const itemsHtml = sale.items.map((item: any) => `
+  const itemsHtml = sale.items.map((item) => `
     <tr style="border-bottom: 1px solid #eee;">
       <td style="padding: 15px 0;">
         <div style="font-size: 16px; font-weight: bold; color: #000;">${item.product.name.toUpperCase()}</div>
@@ -204,7 +219,7 @@ const handlePrint = () => {
 
               <div className="space-y-4">
                 <h3 className="text-xs font-bold uppercase text-muted-foreground">Artículos</h3>
-                {sale.items.map((item: any) => (
+                {sale.items.map((item) => (
                   <div key={item.id} className="flex justify-between items-center border-b border-border/40 pb-2">
                     <div>
                       <p className="font-medium">{item.product.name}</p>

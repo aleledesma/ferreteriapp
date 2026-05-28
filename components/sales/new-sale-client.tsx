@@ -28,17 +28,16 @@ export function NewSaleClient() {
   function handleAddProduct(product: ProductSearchResult) {
     setCart((currentCart) => {
       const existingItem = currentCart.find((item) => item.productId === product.id)
-      const dbProduct = product as any
 
       // Si el producto ya está en el carrito, validamos stock antes de sumar una unidad
       if (existingItem) {
-        if (existingItem.quantity >= (dbProduct.stock || 0)) {
+        if (existingItem.quantity >= (product.stock || 0)) {
           toast.error("Stock insuficiente", { description: "No quedan más unidades en el estante." })
           return currentCart
         }
         // Suma 1 a la cantidad del producto repetido
         return currentCart.map((item) =>
-          item.productId === dbProduct.id
+          item.productId === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         )
@@ -46,12 +45,12 @@ export function NewSaleClient() {
 
       // Si es un producto nuevo en la sesión, lo agrega con cantidad inicial = 1
       return [...currentCart, {
-        productId: dbProduct.id,
-        name: dbProduct.name,
-        code: dbProduct.supplierProductCode || dbProduct.barcode || dbProduct.code || "N/A",
+        productId: product.id,
+        name: product.name,
+        code: product.supplierProductCode || product.barcode || product.code || "N/A",
         quantity: 1,
-        unitPrice: Number(dbProduct.salePrice || dbProduct.price || 0),
-        stock: Number(dbProduct.stock || 0)
+        unitPrice: Number(product.salePrice || product.price || 0),
+        stock: Number(product.stock || 0)
       }]
     })
   }

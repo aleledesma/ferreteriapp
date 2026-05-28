@@ -18,6 +18,19 @@ export type ProductSearchResult = {
   stock: number
 }
 
+type ProductCatalogListItem = {
+  id: string
+  name: string
+  supplierProductCode?: string | null
+  barcode?: string | null
+  pricing?: {
+    salePrice?: number | string | null
+  }
+  inventory?: {
+    stock?: number | null
+  }
+}
+
 type ProductSearchProps = {
   onSelectProduct: (product: ProductSearchResult) => void
 }
@@ -44,7 +57,7 @@ try {
         if (response.ok) {
           const payload = await response.json()
           
-          const productosMapeados = (payload.items || []).map((item: any) => ({
+          const productosMapeados = ((payload.items || []) as ProductCatalogListItem[]).map((item) => ({
             id: item.id,
             name: item.name,
             code: item.supplierProductCode || item.barcode || "N/A",
@@ -117,7 +130,7 @@ try {
 
       {isOpen && results.length === 0 && !isSearching && debouncedSearch.length >= 2 && (
         <div className="absolute top-full z-50 mt-1 w-full rounded-md border border-border/50 bg-background p-4 text-center text-sm shadow-md text-muted-foreground">
-          No se encontraron productos para "{searchTerm}"
+          No se encontraron productos para &quot;{searchTerm}&quot;
         </div>
       )}
     </div>
