@@ -1,93 +1,162 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { ShoppingCart, Receipt, UserX } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { ArrowLeft, Check, Loader2, UserCheck, UserPlus, UserX } from "lucide-react"
 import { toast } from "sonner"
 
 import type { CartItem } from "@/lib/sales/types"
 import type { ProductSearchResult } from "@/components/sales/product-search"
 import { CustomerSearch } from "@/components/sales/customer-search"
 import type { CustomerListItem } from "@/lib/customers/types"
+import type { ProductDetailResponse } from "@/lib/products/catalog-types"
 
+import { CustomerFormSheet } from "@/components/customers/customer-form-sheet"
 import { ProductSearch } from "@/components/sales/product-search"
 import { CartTable } from "@/components/sales/cart-table"
 import { Button } from "@/components/ui/button"
 
+// Design tokens — consistent with the rest of the app
+const ACCENT     = "#3d6aff"
+const ACCENT_BG  = "rgba(61,106,255,0.07)"
+
 export function NewSaleClient() {
-  const [cart, setCart] = useState<CartItem[]>([])
-  
-  // Estado para guardar el cliente seleccionado (null = Consumidor Final)
-  const [customer, setCustomer] = useState<CustomerListItem | null>(null)
+  const [cart, setCart]                     = useState<CartItem[]>([])
+  const [customer, setCustomer]             = useState<CustomerListItem | null>(null)
+  const [isFinalConsumer, setIsFinalConsumer] = useState(false)
+  const [customerFormOpen, setCustomerFormOpen] = useState(false)
+  const [isCheckingOut, setIsCheckingOut]   = useState(false)
 
-  // CALCULO DE TOTAL: Suma (Precio * Cantidad) de cada renglón
-  const totalAmount = useMemo(() => {
-    return cart.reduce((total, item) => total + (Number(item.unitPrice || 0) * item.quantity), 0)
-  }, [cart])
+  const totalAmount = useMemo(
+    () => cart.reduce((sum, item) => sum + Number(item.unitPrice || 0) * item.quantity, 0),
+    [cart],
+  )
 
-  // ACCIÓN: Agrega un producto seleccionado al carrito
-  function handleAddProduct(product: ProductSearchResult) {
-    setCart((currentCart) => {
-      const existingItem = currentCart.find((item) => item.productId === product.id)
+  const itemCount = useMemo(
+    () => cart.reduce((acc, item) => acc + item.quantity, 0),
+    [cart],
+  )
 
-      // Si el producto ya está en el carrito, validamos stock antes de sumar una unidad
-      if (existingItem) {
-        if (existingItem.quantity >= (product.stock || 0)) {
-          toast.error("Stock insuficiente", { description: "No quedan más unidades en el estante." })
-          return currentCart
+  const handleAddProduct = useCallback((product: ProductSearchResult) => {
+    setCart((current) => {
+      const existing = current.find((item) => item.productId === product.id)
+
+      if (existing) {
+        if (existing.quantity >= (product.stock || 0)) {
+          toast.error("Stock insuficiente", { description: "No quedan más unidades disponibles." })
+          return current
         }
-        // Suma 1 a la cantidad del producto repetido
-        return currentCart.map((item) =>
+        return current.map((item) =>
           item.productId === product.id
             ? { ...item, quantity: item.quantity + 1 }
-            : item
+            : item,
         )
       }
 
-      // Si es un producto nuevo en la sesión, lo agrega con cantidad inicial = 1
-      return [...currentCart, {
-        productId: product.id,
-        name: product.name,
-        code: product.supplierProductCode || product.barcode || product.code || "N/A",
-        quantity: 1,
-        unitPrice: Number(product.salePrice || product.price || 0),
-        stock: Number(product.stock || 0)
-      }]
+      return [
+        ...current,
+        {
+          productId: product.id,
+          name:      product.name,
+          code:      product.supplierProductCode || product.barcode || product.code || "N/A",
+          quantity:  1,
+          unitPrice: Number(product.salePrice || product.price || 0),
+          stock:     Number(product.stock || 0),
+        },
+      ]
     })
-  }
+  }, [])
 
-  // Modifica la cantidad directo desde la tabla (tipeando o con botones +/-)
+  useEffect(() => {
+    // Leer la URL en el momento exacto del mount — evita el problema de timing
+    // con useSearchParams durante navegaciones client-side de Next.js.
+    const productId = new URLSearchParams(window.location.search).get("productId")
+    if (!productId) return
+
+    let cancelled = false
+
+    async function loadInitialProduct() {
+      try {
+        const response = await fetch(`/api/products/${productId}`)
+        const payload  = (await response.json()) as ProductDetailResponse & { error?: string }
+
+        if (!response.ok || !payload.product) {
+          throw new Error(payload.error || "No se pudo cargar el producto seleccionado.")
+        }
+
+        const product = payload.product
+
+        if (!product.flags.isActive || !product.flags.isForSale || product.inventory.stock <= 0) {
+          throw new Error("El producto seleccionado no está disponible para venta.")
+        }
+
+        if (!cancelled) {
+          handleAddProduct({
+            id:                  product.id,
+            name:                product.name,
+            supplierProductCode: product.supplierProductCode,
+            barcode:             product.barcode,
+            salePrice:           product.pricing.salePrice,
+            stock:               product.inventory.stock,
+          })
+          toast.success("Producto agregado al ticket", { description: product.name })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          toast.error("No se pudo iniciar la venta con ese producto", {
+            description: error instanceof Error ? error.message : "Intentalo nuevamente.",
+          })
+        }
+      }
+    }
+
+    void loadInitialProduct()
+    return () => { cancelled = true }
+  // handleAddProduct es estable (useCallback con []) — el efecto solo corre al montar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleAddProduct])
+
   function handleUpdateQuantity(productId: string, newQuantity: number) {
     setCart((current) =>
       current.map((item) =>
-        item.productId === productId ? { ...item, quantity: newQuantity } : item
-      )
+        item.productId === productId ? { ...item, quantity: newQuantity } : item,
+      ),
     )
   }
 
-  //Elimina un renglón del carrito 
   function handleRemoveItem(productId: string) {
     setCart((current) => current.filter((item) => item.productId !== productId))
   }
 
-  //Envía el carrito a la base de datos al presionar "Emitir Ticket"
- async function handleCheckout() {
-    if (cart.length === 0) return
+  function handleSelectCustomer(selected: CustomerListItem) {
+    setCustomer(selected)
+    setIsFinalConsumer(false)
+  }
 
-    const toastId = toast.loading("Registrando venta y descontando stock...")
+  function handleUseFinalConsumer() {
+    setCustomer(null)
+    setIsFinalConsumer(true)
+  }
+
+  function handleClearCustomer() {
+    setCustomer(null)
+    setIsFinalConsumer(false)
+  }
+
+  async function handleCheckout() {
+    if (cart.length === 0 || isCheckingOut) return
+    setIsCheckingOut(true)
+
+    const toastId = toast.loading("Registrando venta…")
 
     try {
       const response = await fetch("/api/sales", {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: customer ? customer.id : null, // Si hay cliente manda el ID, si no, null
-          items: cart.map(item => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-          })),
-          totalAmount: totalAmount
-        })
+        body:    JSON.stringify({
+          customerId: customer ? customer.id : null,
+          items:      cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        }),
       })
 
       if (!response.ok) {
@@ -95,96 +164,218 @@ export function NewSaleClient() {
         throw new Error(errorData.error || "Error al registrar la venta")
       }
 
-      toast.success("¡Venta completada!", { 
-        id: toastId,
-        description: `El ticket se guardó y el stock fue actualizado correctamente.`
+      toast.success("Venta registrada", {
+        id:          toastId,
+        description: "El ticket se guardó y el stock fue actualizado.",
       })
-      
-      // Limpiamos la caja para el siguiente cliente
-      setCart([]) 
-      setCustomer(null) 
 
+      setCart([])
+      setCustomer(null)
     } catch (error) {
-      toast.error("Operación fallida", {
-        id: toastId,
-        description: error instanceof Error ? error.message : "No se pudo guardar la venta."
+      toast.error("No se pudo registrar la venta", {
+        id:          toastId,
+        description: error instanceof Error ? error.message : "Intentalo nuevamente.",
       })
+    } finally {
+      setIsCheckingOut(false)
     }
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Izquierda: Buscador y Tabla */}
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-background rounded-xl p-4 border border-border/60 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
-          <ProductSearch onSelectProduct={handleAddProduct} />
+    <div className="space-y-5">
+
+      {/* ── Page header ───────────────────────────────────────────────────── */}
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+            Punto de venta
+          </p>
+          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground leading-none">
+            Nueva venta
+          </h1>
         </div>
-        
-        <div className="animate-in fade-in slide-in-from-bottom-3 duration-700">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="h-9 gap-1.5 rounded-lg text-[13px] text-muted-foreground shadow-none hover:text-foreground"
+        >
+          <Link href="/sales">
+            <ArrowLeft className="size-3.5" />
+            Historial
+          </Link>
+        </Button>
+      </header>
+
+      {/* ── Two-panel layout ──────────────────────────────────────────────── */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+
+        {/* Left panel — workspace */}
+        <div className="space-y-4">
+
+          {/* Product search */}
+          <div className="rounded-xl border border-border/60 bg-background p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Agregar productos
+            </p>
+            <p className="mt-0.5 text-[13px] font-semibold text-foreground">
+              Buscar por nombre, código o código de barras
+            </p>
+            <div className="mt-4">
+              <ProductSearch onSelectProduct={handleAddProduct} />
+            </div>
+          </div>
+
+          {/* Cart */}
           <CartTable
             items={cart}
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
           />
         </div>
-      </div>
 
-      {/* Derecha: Panel de Cobro */}
-      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-700">
-        <div className="bg-background/80 backdrop-blur-sm rounded-xl p-6 border border-border/60 shadow-sm flex flex-col h-full min-h-[300px]">
-          <h2 className="text-lg font-semibold flex items-center gap-2 border-b border-border/50 pb-4 mb-4">
-            <ShoppingCart className="size-5" /> Resumen de Venta
-          </h2>
+        {/* Right panel — checkout */}
+        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
 
-          {/* NUEVO: SECCIÓN DE CLIENTE */}
-          <div className="mb-4 pb-4 border-b border-border/50">
-            <h3 className="text-sm font-medium text-muted-foreground mb-3">Cliente</h3>
-            {customer ? (
-              // Si hay cliente elegido, mostramos su nombre y un botón para quitarlo
-              <div className="flex items-center justify-between bg-primary/10 p-3 rounded-lg border border-primary/20">
-                <div className="flex flex-col">
-                  <span className="font-semibold text-primary">{customer.lastName}, {customer.firstName}</span>
-                  <span className="text-xs text-muted-foreground">{customer.email || customer.phone || "Sin datos extra"}</span>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setCustomer(null)} className="text-destructive hover:bg-destructive/10 h-8 w-8" title="Quitar cliente">
+          {/* Customer card */}
+          <div className="rounded-xl border border-border/60 bg-background p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  Cliente
+                </p>
+                <p className="mt-0.5 text-[13px] font-semibold text-foreground">
+                  {customer
+                    ? `${customer.lastName}, ${customer.firstName}`
+                    : isFinalConsumer
+                      ? "Consumidor final"
+                      : "Sin cliente asignado"}
+                </p>
+              </div>
+
+              {customer ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClearCustomer}
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Quitar cliente"
+                >
                   <UserX className="size-4" />
                 </Button>
+              ) : isFinalConsumer ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClearCustomer}
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Cambiar selección"
+                >
+                  <UserX className="size-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCustomerFormOpen(true)}
+                  className="h-8 shrink-0 gap-1.5 rounded-lg border-border/60 text-[12px] shadow-none"
+                >
+                  <UserPlus className="size-3.5" />
+                  Nuevo
+                </Button>
+              )}
+            </div>
+
+            {/* Customer info chip, final consumer chip, or search */}
+            {customer ? (
+              <div className="mt-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+                <p className="truncate text-[12px] text-muted-foreground">
+                  {customer.email || customer.phone || "Sin datos de contacto"}
+                </p>
+              </div>
+            ) : isFinalConsumer ? (
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+                <UserCheck className="size-3.5 shrink-0 text-muted-foreground" />
+                <p className="text-[12px] text-muted-foreground">
+                  Venta sin asociar cliente
+                </p>
               </div>
             ) : (
-              // Si no hay cliente, mostramos el buscador
-              <CustomerSearch onSelectCustomer={setCustomer} />
+              <div className="mt-3">
+                <CustomerSearch
+                  onSelectCustomer={handleSelectCustomer}
+                  onCreateCustomer={() => setCustomerFormOpen(true)}
+                  onUseFinalConsumer={handleUseFinalConsumer}
+                />
+              </div>
             )}
           </div>
 
-          <div className="flex-1 space-y-4">
-            <div className="flex justify-between text-muted-foreground text-sm">
-              <span>Cant. de artículos:</span>
-              <span className="font-medium text-foreground">
-                {cart.reduce((acc, item) => acc + item.quantity, 0)}
-              </span>
-            </div>
-          </div>
+          {/* Summary + checkout card */}
+          <div className="rounded-xl border border-border/60 bg-background p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Resumen del ticket
+            </p>
 
-          <div className="mt-auto pt-6 border-t border-border/50">
-            <div className="flex items-end justify-between mb-6">
-              <span className="text-lg font-medium text-muted-foreground mb-1">TOTAL</span>
-              <span className="text-4xl font-bold text-green-600 dark:text-green-500 tabular-nums tracking-tight">
+            {/* Mini stats */}
+            <div className="mt-3">
+              <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                <p className="text-[10px] text-muted-foreground">Artículos</p>
+                <p className="mt-0.5 font-mono text-xl font-semibold text-foreground">
+                  {itemCount}
+                </p>
+              </div>
+            </div>
+
+            {/* Total */}
+            <div className="mt-4 border-t border-border/50 pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                Total a cobrar
+              </p>
+              <p
+                className="mt-1 font-mono text-[2.6rem] font-semibold leading-none tracking-tight text-foreground"
+                style={{ color: cart.length > 0 ? ACCENT : undefined }}
+              >
                 ${totalAmount.toLocaleString("es-AR")}
-              </span>
+              </p>
+              {cart.length === 0 && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Agregá al menos un producto para continuar.
+                </p>
+              )}
             </div>
 
+            {/* Single CTA */}
             <Button
               size="lg"
-              className="w-full h-14 text-lg font-bold shadow-md hover:scale-[1.02] transition-transform"
-              disabled={cart.length === 0}
+              className="mt-5 h-12 w-full gap-2 rounded-xl text-[14px] font-semibold shadow-none"
+              disabled={cart.length === 0 || isCheckingOut}
               onClick={handleCheckout}
             >
-              <Receipt className="size-5 mr-2" />
-              Emitir Ticket
+              {isCheckingOut ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Check className="size-4" />
+              )}
+              {isCheckingOut ? "Registrando…" : "Emitir ticket"}
             </Button>
           </div>
-        </div>
+        </aside>
       </div>
+
+      <CustomerFormSheet
+        open={customerFormOpen}
+        customer={null}
+        onOpenChange={setCustomerFormOpen}
+        onSaved={(createdCustomer) => {
+          setCustomer(createdCustomer)
+          setIsFinalConsumer(false)
+          toast.success("Cliente creado y seleccionado", {
+            description: `${createdCustomer.lastName}, ${createdCustomer.firstName}`,
+          })
+        }}
+      />
     </div>
   )
 }
