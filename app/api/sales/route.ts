@@ -59,6 +59,18 @@ function parseCreateSaleInput(payload: unknown): CreateSaleInput {
   return { customerId, items }
 }
 
+function parsePositivePage(value: string | null) {
+  const page = Number(value ?? "1")
+  return Number.isInteger(page) && page > 0 ? page : 1
+}
+
+function parseValidDate(value: string | null) {
+  if (!value) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export async function POST(request: Request) {
   // 1. Verificamos que el cajero tenga permisos
   const authorization = await getAuthorizedApiUser(["ACTIVE", "ADMIN"])
@@ -198,49 +210,53 @@ export async function GET(request: Request) {
     )
   }
 
-  const { searchParams } = new URL(request.url)
-  const page = parseInt(searchParams.get("page") || "1")
-  const search = searchParams.get("search") || ""
-  const startDate = searchParams.get("startDate") 
-  const endDate = searchParams.get("endDate")    
-  
-  const limit = 10
-  const skip = (page - 1) * limit
+  try {
+    const { searchParams } = new URL(request.url)
+    const page = parsePositivePage(searchParams.get("page"))
+    const search = searchParams.get("search")?.trim() || ""
+    const startDate = parseValidDate(searchParams.get("startDate"))
+    const endDate = parseValidDate(searchParams.get("endDate"))
+    const limit = 10
+    const skip = (page - 1) * limit
+    const conditions: Prisma.SaleWhereInput[] = []
 
-  const whereClause: Prisma.SaleWhereInput = { AND: [] }
+    if (search) {
+      conditions.push({
+        OR: [
+          { id: { contains: search, mode: "insensitive" } },
+          { customer: { lastName: { contains: search, mode: "insensitive" } } },
+        ],
+      })
+    }
 
-  if (search) {
-    whereClause.AND.push({
-      OR: [
-        { id: { contains: search, mode: 'insensitive' } },
-        { customer: { lastName: { contains: search, mode: 'insensitive' } } },
-      ]
-    })
+    // Filtro de fechas (Calendario)
+    if (startDate && endDate) {
+      conditions.push({
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      })
+    }
+
+    const whereClause: Prisma.SaleWhereInput = conditions.length > 0 ? { AND: conditions } : {}
+    const [sales, totalCount] = await Promise.all([
+      prisma.sale.findMany({
+        where: whereClause,
+        take: limit,
+        skip,
+        orderBy: { createdAt: "desc" },
+        include: {
+          customer: { select: { firstName: true, lastName: true } },
+          _count: { select: { items: true } },
+        },
+      }),
+      prisma.sale.count({ where: whereClause }),
+    ])
+
+    return NextResponse.json({ items: sales, total: totalCount, pages: Math.ceil(totalCount / limit) })
+  } catch (error) {
+    console.error("Error al listar ventas:", error)
+    return NextResponse.json({ error: "Error interno del servidor al listar ventas." }, { status: 500 })
   }
-
-  // Filtro de fechas (Calendario)
-  if (startDate && endDate) {
-    whereClause.AND.push({
-      createdAt: {
-        gte: new Date(startDate), // (Desde)
-        lte: new Date(endDate),   // (Hasta)
-      }
-    })
-  }
-
-  const [sales, totalCount] = await Promise.all([
-    prisma.sale.findMany({
-      where: whereClause,
-      take: limit,
-      skip: skip,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        customer: { select: { firstName: true, lastName: true } },
-        _count: { select: { items: true } }
-      }
-    }),
-    prisma.sale.count({ where: whereClause })
-  ])
-
-  return NextResponse.json({ items: sales, total: totalCount, pages: Math.ceil(totalCount / limit) })
 }
