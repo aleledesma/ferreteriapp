@@ -118,7 +118,8 @@ export async function POST(request: Request) {
           throw new SaleInputError("Uno de los productos del carrito no está disponible para la venta.")
         }
 
-        if (product.stock < item.quantity) {
+        // stock null = sin controlar: se permite la venta sin validar cantidad
+        if (product.stock !== null && product.stock < item.quantity) {
           throw new SaleInputError(`Stock insuficiente para ${product.name}. Quedan ${product.stock}.`)
         }
 
@@ -142,8 +143,6 @@ export async function POST(request: Request) {
 
       // B. Recorremos cada producto del carrito
       for (const item of saleItems) {
-        const nextStock = item.product.stock - item.quantity
-
         // B1. Guardamos el renglón del ticket (SaleItem)
         const saleItem = await tx.saleItem.create({
           data: {
@@ -155,29 +154,34 @@ export async function POST(request: Request) {
           }
         })
 
-        // B2. DESCONTAMOS EL STOCK DE LA GÓNDOLA (Product) de forma atómica.
-        const stockUpdate = await tx.product.updateMany({
-          where: { id: item.productId, stock: { gte: item.quantity } },
-          data: { stock: { decrement: item.quantity } }
-        })
+        // B2 y B3: solo si el producto tiene stock controlado (no null)
+        if (item.product.stock !== null) {
+          const nextStock = item.product.stock - item.quantity
 
-        if (stockUpdate.count !== 1) {
-          throw new SaleInputError(`Stock insuficiente para ${item.product.name}.`)
-        }
+          // B2. Descontamos el stock de forma atómica
+          const stockUpdate = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } }
+          })
 
-        // B3. Dejamos el registro contable del movimiento (StockMovement)
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            saleItemId: saleItem.id,
-            createdByUserId: userId,
-            type: StockMovementType.SALE,
-            quantityDelta: -item.quantity, // RESTAMOS stock
-            previousStock: item.product.stock,
-            nextStock: nextStock,
-            notes: `Venta en mostrador`
+          if (stockUpdate.count !== 1) {
+            throw new SaleInputError(`Stock insuficiente para ${item.product.name}.`)
           }
-        })
+
+          // B3. Movimiento contable
+          await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              saleItemId: saleItem.id,
+              createdByUserId: userId,
+              type: StockMovementType.SALE,
+              quantityDelta: -item.quantity,
+              previousStock: item.product.stock,
+              nextStock,
+              notes: `Venta en mostrador`
+            }
+          })
+        }
       }
 
       return sale
