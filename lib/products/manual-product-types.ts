@@ -33,7 +33,7 @@ export type ManualBatchProductInput = {
   barcode?: string | null
   costPrice: number
   salePrice: number
-  initialStock: number
+  initialStock?: number | null
   minStock?: number
   isActive?: boolean
   isForSale?: boolean
@@ -55,7 +55,7 @@ export type ManualExistingProductConflict = {
     name: string
     costPrice: number
     salePrice: number
-    stock: number
+    stock: number | null
     minStock: number
     isActive: boolean
     isForSale: boolean
@@ -64,8 +64,8 @@ export type ManualExistingProductConflict = {
     name: string
     costPrice: number
     salePrice: number
-    stockToAdd: number
-    resultingStock: number
+    stockToAdd: number | null
+    resultingStock: number | null
     minStock: number
     isActive: boolean
     isForSale: boolean

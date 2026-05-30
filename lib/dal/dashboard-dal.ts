@@ -276,15 +276,18 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // ─── Stock ──────────────────────────────────────────────────────────────────
 
-  let inStockCount    = 0
-  let lowStockCount   = 0
-  let outOfStockCount = 0
+  let inStockCount      = 0
+  let lowStockCount     = 0
+  let outOfStockCount   = 0
+  let uncontrolledCount = 0
 
   const lowStockProducts = products
     .map((product) => {
       const status = deriveStockStatus(product.stock, product.minStock)
 
-      if (status === "stock_normal") { inStockCount++;  return null }
+      // sin_controlar: no cuenta en alertas ni distribución de stock controlado
+      if (status === "sin_controlar") { uncontrolledCount++; return null }
+      if (status === "stock_normal")  { inStockCount++;       return null }
       if (status === "stock_bajo")    lowStockCount++
       if (status === "sin_stock")     outOfStockCount++
 
@@ -292,7 +295,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         id:           product.id,
         name:         product.name,
         supplierName: product.supplier.name,
-        stock:        product.stock,
+        stock:        product.stock ?? 0,
         minStock:     product.minStock,
         status,
       } satisfies LowStockItem
@@ -307,9 +310,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     .slice(0, 5)
 
   const stockDistribution: StockDistributionPoint[] = [
-    { name: "Normal",     value: inStockCount,    fill: "var(--color-chart-1)" },
-    { name: "Stock bajo", value: lowStockCount,   fill: "var(--color-chart-4)" },
-    { name: "Sin stock",  value: outOfStockCount, fill: "var(--color-destructive)" },
+    { name: "Normal",        value: inStockCount,      fill: "var(--color-chart-1)" },
+    { name: "Stock bajo",    value: lowStockCount,     fill: "var(--color-chart-4)" },
+    { name: "Sin stock",     value: outOfStockCount,   fill: "var(--color-destructive)" },
+    { name: "Sin controlar", value: uncontrolledCount, fill: "var(--color-chart-3)" },
   ]
 
   const topProducts = Array.from(topProductsMap.values())

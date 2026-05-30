@@ -40,7 +40,7 @@ type ProductRow = {
   description: string | null
   costPrice: Prisma.Decimal
   salePrice: Prisma.Decimal
-  stock: number
+  stock: number | null
   minStock: number
   isActive: boolean
   isForSale: boolean
@@ -144,9 +144,10 @@ function buildWhere(filters: ProductCatalogFilters): Prisma.ProductWhereInput {
 
 function compareCriticalStock(a: ProductListItemDto, b: ProductListItemDto) {
   const priority: Record<ProductStockStatus, number> = {
-    sin_stock: 0,
-    stock_bajo: 1,
-    stock_normal: 2,
+    sin_stock:     0,
+    stock_bajo:    1,
+    stock_normal:  2,
+    sin_controlar: 3,
   }
 
   const byPriority = priority[a.inventory.stockStatus] - priority[b.inventory.stockStatus]
@@ -170,7 +171,13 @@ function sortItems(items: ProductListItemDto[], sort: ProductSortOption) {
     case "sale_price":
       return next.sort((a, b) => Number(a.pricing.salePrice) - Number(b.pricing.salePrice))
     case "stock":
-      return next.sort((a, b) => a.inventory.stock - b.inventory.stock)
+      return next.sort((a, b) => {
+        // null al final
+        if (a.inventory.stock === null && b.inventory.stock === null) return 0
+        if (a.inventory.stock === null) return 1
+        if (b.inventory.stock === null) return -1
+        return a.inventory.stock - b.inventory.stock
+      })
     case "supplier":
       return next.sort((a, b) => {
         const supplierCompare = a.supplier.name.localeCompare(b.supplier.name, "es")
@@ -254,11 +261,14 @@ export async function getProductCatalogKpis(): Promise<ProductCatalogKpisRespons
 
     totalProducts += 1
 
-    const stockStatus = deriveStockStatus(product.stock, product.minStock)
-
     if (product.isActive) {
       activeProducts += 1
     }
+
+    // Productos sin_controlar no cuentan en las alertas de stock
+    if (product.stock === null) continue
+
+    const stockStatus = deriveStockStatus(product.stock, product.minStock)
 
     if (stockStatus === "stock_bajo") {
       lowStockProducts += 1

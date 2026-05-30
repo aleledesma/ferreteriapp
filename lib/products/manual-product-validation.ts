@@ -103,7 +103,10 @@ function parseManualBatchProductInput(payload: unknown): ManualBatchProductInput
     barcode: normalizeNullableText(record.barcode),
     costPrice: parseNonNegativeNumber(record.costPrice, "El precio de costo"),
     salePrice: parseNonNegativeNumber(record.salePrice, "El precio de venta"),
-    initialStock: parseNonNegativeInteger(record.initialStock, "El stock inicial"),
+    initialStock:
+      record.initialStock === undefined || record.initialStock === null || record.initialStock === ""
+        ? null
+        : parseNonNegativeInteger(record.initialStock, "El stock inicial"),
     minStock:
       typeof record.minStock === "undefined"
         ? 0

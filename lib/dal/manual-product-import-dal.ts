@@ -99,6 +99,7 @@ export async function createManualProduct(
     )
 
     const existingProduct = existingProductMap.get(input.product.supplierProductCode)
+    const incomingStock   = input.product.initialStock ?? null
     const conflicts: ManualExistingProductConflict[] = existingProduct
       ? [
           {
@@ -117,8 +118,10 @@ export async function createManualProduct(
               name: input.product.name,
               costPrice: input.product.costPrice,
               salePrice: input.product.salePrice,
-              stockToAdd: input.product.initialStock,
-              resultingStock: existingProduct.stock + input.product.initialStock,
+              stockToAdd: incomingStock,
+              resultingStock: incomingStock === null
+                ? existingProduct.stock
+                : (existingProduct.stock ?? 0) + incomingStock,
               minStock: input.product.minStock ?? 0,
               isActive: input.product.isActive ?? true,
               isForSale: input.product.isForSale ?? true,
@@ -139,7 +142,10 @@ export async function createManualProduct(
     let productId: string
 
     if (existingProduct) {
-      const nextStock = existingProduct.stock + input.product.initialStock
+      // Si no se especifica stock, no se toca el stock existente
+      const nextStock = incomingStock === null
+        ? existingProduct.stock
+        : (existingProduct.stock ?? 0) + incomingStock
 
       const updatedProduct = await tx.product.update({
         where: { id: existingProduct.id },
@@ -153,13 +159,13 @@ export async function createManualProduct(
       productId = updatedProduct.id
       updatedExistingProduct = true
 
-      if (input.product.initialStock > 0) {
+      if (incomingStock !== null && incomingStock > 0) {
         await tx.stockMovement.create({
           data: {
             productId: updatedProduct.id,
             createdByUserId,
             type: "MANUAL_ADJUSTMENT",
-            quantityDelta: input.product.initialStock,
+            quantityDelta: incomingStock,
             previousStock: existingProduct.stock,
             nextStock,
             notes: "Ajuste manual por actualización de producto existente.",
@@ -169,11 +175,12 @@ export async function createManualProduct(
         stockMovementsCreated += 1
       }
     } else {
+      // stock null = sin controlar; stock 0 o mayor = controlado desde el inicio
       const createdProduct = await tx.product.create({
         data: {
           supplierId: priceList.supplierId,
           supplierProductCode: input.product.supplierProductCode,
-          stock: input.product.initialStock,
+          stock: incomingStock ?? undefined,
           ...toCreateOrUpdateProductData(input.product, priceList.id),
         },
         select: { id: true },
@@ -181,15 +188,15 @@ export async function createManualProduct(
 
       productId = createdProduct.id
 
-      if (input.product.initialStock > 0) {
+      if (incomingStock !== null && incomingStock > 0) {
         await tx.stockMovement.create({
           data: {
             productId: createdProduct.id,
             createdByUserId,
             type: "INITIAL",
-            quantityDelta: input.product.initialStock,
+            quantityDelta: incomingStock,
             previousStock: 0,
-            nextStock: input.product.initialStock,
+            nextStock: incomingStock,
             notes: "Carga manual inicial de producto.",
           },
         })
