@@ -42,7 +42,8 @@ export function NewSaleClient() {
       const existing = current.find((item) => item.productId === product.id)
 
       if (existing) {
-        if (existing.quantity >= (product.stock || 0)) {
+        // stock null = sin controlar, no hay límite de cantidad
+        if (existing.stock !== null && existing.quantity >= existing.stock) {
           toast.error("Stock insuficiente", { description: "No quedan más unidades disponibles." })
           return current
         }
@@ -61,7 +62,7 @@ export function NewSaleClient() {
           code:      product.supplierProductCode || product.barcode || product.code || "N/A",
           quantity:  1,
           unitPrice: Number(product.salePrice || product.price || 0),
-          stock:     Number(product.stock || 0),
+          stock:     product.stock ?? null,
         },
       ]
     })
@@ -86,7 +87,11 @@ export function NewSaleClient() {
 
         const product = payload.product
 
-        if (!product.flags.isActive || !product.flags.isForSale || product.inventory.stock <= 0) {
+        if (!product.flags.isActive || !product.flags.isForSale) {
+          throw new Error("El producto seleccionado no está disponible para venta.")
+        }
+        // stock null = sin controlar (vendible); stock 0 = sin unidades (bloqueado)
+        if (product.inventory.stock !== null && product.inventory.stock <= 0) {
           throw new Error("El producto seleccionado no está disponible para venta.")
         }
 
@@ -97,7 +102,7 @@ export function NewSaleClient() {
             supplierProductCode: product.supplierProductCode,
             barcode:             product.barcode,
             salePrice:           product.pricing.salePrice,
-            stock:               product.inventory.stock,
+            stock:               product.inventory.stock ?? null,
           })
           toast.success("Producto agregado al ticket", { description: product.name })
         }

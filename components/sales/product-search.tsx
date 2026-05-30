@@ -15,7 +15,7 @@ export type ProductSearchResult = {
   code?: string | null
   salePrice?: number | string
   price?: number
-  stock: number
+  stock: number | null
 }
 
 type ProductCatalogListItem = {
@@ -80,7 +80,7 @@ export function ProductSearch({ onSelectProduct }: ProductSearchProps) {
             name: item.name,
             code: item.supplierProductCode || item.barcode || "N/A",
             price: Number(item.pricing?.salePrice || 0),
-            stock: Number(item.inventory?.stock || 0),
+            stock: item.inventory?.stock ?? null,
           }))
 
           setResults(productosMapeados)
@@ -135,11 +135,9 @@ export function ProductSearch({ onSelectProduct }: ProductSearchProps) {
                   {product.name}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  Stock: {product.stock} | Código:{" "}
-                  {product.supplierProductCode ||
-                    product.barcode ||
-                    product.code ||
-                    "N/A"}
+                  {product.stock === null ? "Sin control de stock" : `Stock: ${product.stock}`}
+                  {" | "}Código:{" "}
+                  {product.supplierProductCode || product.barcode || product.code || "N/A"}
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-3">

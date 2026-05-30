@@ -64,7 +64,7 @@ function createEmptyDraft(): ManualProductDraft {
     barcode: "",
     costPrice: "0",
     salePrice: "0",
-    initialStock: "0",
+    initialStock: "",
     minStock: "0",
     listPrice: "",
     offerPrice: "",
@@ -107,7 +107,7 @@ function buildManualProductPayload(
       barcode: product.barcode.trim() || null,
       costPrice: Number(product.costPrice),
       salePrice: Number(product.salePrice),
-      initialStock: Number(product.initialStock),
+      initialStock: product.initialStock.trim() === "" ? null : Number(product.initialStock),
       minStock: Number(product.minStock),
       listPrice: parseOptionalNumber(product.listPrice),
       offerPrice: parseOptionalNumber(product.offerPrice),
@@ -618,12 +618,16 @@ export function ProductImportManualTab() {
               <SectionLabel>Inventario</SectionLabel>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
-                  <Label htmlFor="product-stock">Stock inicial</Label>
+                  <Label htmlFor="product-stock">
+                    Stock inicial{" "}
+                    <span className="font-normal text-muted-foreground">(opcional)</span>
+                  </Label>
                   <Input
                     id="product-stock"
                     type="number"
                     min="0"
                     step="1"
+                    placeholder="Dejar vacío = sin controlar"
                     value={product.initialStock}
                     onChange={(event) => updateProductField("initialStock", event.target.value)}
                   />

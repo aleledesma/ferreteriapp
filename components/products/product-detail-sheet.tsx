@@ -121,7 +121,7 @@ export function ProductDetailSheet({
   }, [detail, draft])
 
   const stockDelta =
-    detail && draft.nextStock !== ""
+    detail && draft.nextStock !== "" && detail.inventory.stock !== null
       ? Number(draft.nextStock) - detail.inventory.stock
       : 0
 
@@ -425,7 +425,7 @@ export function ProductDetailSheet({
                 </p>
               ) : null}
               <div className="pt-1">
-                {detail.flags.isActive && detail.flags.isForSale && detail.inventory.stock > 0 && !detail.flags.isDeleted ? (
+                {detail.flags.isActive && detail.flags.isForSale && (detail.inventory.stock === null || detail.inventory.stock > 0) && !detail.flags.isDeleted ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -483,19 +483,22 @@ export function ProductDetailSheet({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Stock
                   </p>
-                  <p
-                    className={cn(
-                      "mt-1.5 text-3xl font-bold tabular-nums leading-none tracking-tight",
-                      detail.inventory.stockStatus === "sin_stock" &&
-                        "text-destructive",
-                      detail.inventory.stockStatus === "stock_bajo" &&
-                        "text-amber-600",
-                      detail.inventory.stockStatus === "stock_normal" &&
-                        "text-foreground",
-                    )}
-                  >
-                    {detail.inventory.stock}
-                  </p>
+                  {detail.inventory.stockStatus === "sin_controlar" ? (
+                    <p className="mt-1.5 text-lg font-semibold leading-none tracking-tight text-muted-foreground">
+                      Sin controlar
+                    </p>
+                  ) : (
+                    <p
+                      className={cn(
+                        "mt-1.5 text-3xl font-bold tabular-nums leading-none tracking-tight",
+                        detail.inventory.stockStatus === "sin_stock" && "text-destructive",
+                        detail.inventory.stockStatus === "stock_bajo" && "text-amber-600",
+                        detail.inventory.stockStatus === "stock_normal" && "text-foreground",
+                      )}
+                    >
+                      {detail.inventory.stock}
+                    </p>
+                  )}
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     mín. {detail.inventory.minStock}
                   </p>
@@ -658,7 +661,7 @@ export function ProductDetailSheet({
                         <p className="text-xs text-muted-foreground">
                           Stock actual:{" "}
                           <span className="font-semibold tabular-nums text-foreground">
-                            {detail.inventory.stock}
+                            {detail.inventory.stock ?? "Sin controlar"}
                           </span>
                         </p>
                         {stockDelta !== 0 && !Number.isNaN(stockDelta) ? (
@@ -704,7 +707,8 @@ export function ProductDetailSheet({
                             disabled={
                               isSaving ||
                               draft.nextStock === "" ||
-                              Number(draft.nextStock) === detail.inventory.stock
+                              (detail.inventory.stock !== null &&
+                                Number(draft.nextStock) === detail.inventory.stock)
                             }
                             onClick={() => void handleStockAdjustment()}
                           >

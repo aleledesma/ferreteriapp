@@ -73,14 +73,12 @@ export function CartTable({ items, onUpdateQuantity, onRemoveItem }: CartTablePr
                 <td className="px-5 py-3.5">
                   <p className="text-[13px] font-medium text-foreground">{item.name}</p>
                   <p className="mt-0.5 text-[11px]">
-                    {item.stock < 5 ? (
-                      <span style={{ color: "#d97706" }}>
-                        Quedan {item.stock} en stock
-                      </span>
+                    {item.stock === null ? (
+                      <span className="text-muted-foreground/60">Sin control de stock</span>
+                    ) : item.stock < 5 ? (
+                      <span style={{ color: "#d97706" }}>Quedan {item.stock} en stock</span>
                     ) : (
-                      <span className="text-muted-foreground">
-                        Stock: {item.stock}
-                      </span>
+                      <span className="text-muted-foreground">Stock: {item.stock}</span>
                     )}
                   </p>
                 </td>
@@ -114,7 +112,7 @@ export function CartTable({ items, onUpdateQuantity, onRemoveItem }: CartTablePr
                       size="icon"
                       className="h-7 w-7 rounded-lg border-border/60 shadow-none"
                       onClick={() => onUpdateQuantity(item.productId, item.quantity + 1)}
-                      disabled={item.quantity >= item.stock}
+                      disabled={item.stock !== null && item.quantity >= item.stock}
                     >
                       <Plus className="size-3" />
                     </Button>
@@ -156,14 +154,12 @@ export function CartTable({ items, onUpdateQuantity, onRemoveItem }: CartTablePr
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   Código: {item.code}
                 </p>
-                {item.stock < 5 ? (
-                  <p className="mt-0.5 text-[11px]" style={{ color: "#d97706" }}>
-                    Quedan {item.stock} en stock
-                  </p>
+                {item.stock === null ? (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground/60">Sin control de stock</p>
+                ) : item.stock < 5 ? (
+                  <p className="mt-0.5 text-[11px]" style={{ color: "#d97706" }}>Quedan {item.stock} en stock</p>
                 ) : (
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Stock: {item.stock}
-                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">Stock: {item.stock}</p>
                 )}
               </div>
               <Button
@@ -198,7 +194,7 @@ export function CartTable({ items, onUpdateQuantity, onRemoveItem }: CartTablePr
                   size="icon"
                   className="h-8 w-8 rounded-lg border-border/60 shadow-none"
                   onClick={() => onUpdateQuantity(item.productId, item.quantity + 1)}
-                  disabled={item.quantity >= item.stock}
+                  disabled={item.stock !== null && item.quantity >= item.stock}
                 >
                   <Plus className="size-3" />
                 </Button>
