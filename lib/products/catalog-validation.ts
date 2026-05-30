@@ -10,7 +10,7 @@ import type {
   UpdateProductRequest,
 } from "@/lib/products/catalog-types"
 
-const STOCK_STATUS_VALUES: ProductStockStatus[] = ["sin_stock", "stock_bajo", "stock_normal"]
+const STOCK_STATUS_VALUES: ProductStockStatus[] = ["sin_controlar", "sin_stock", "stock_bajo", "stock_normal"]
 const ACTIVITY_STATUS_VALUES: ProductActivityStatusFilter[] = ["active", "inactive", "all"]
 const SALE_STATUS_VALUES: ProductSaleStatusFilter[] = ["for_sale", "not_for_sale", "all"]
 const SORT_VALUES: ProductSortOption[] = [
@@ -56,9 +56,10 @@ export function parseProductCatalogFilters(searchParams: URLSearchParams): Produ
   }
 }
 
-export function deriveStockStatus(stock: number, minStock: number): ProductStockStatus {
+export function deriveStockStatus(stock: number | null, minStock: number): ProductStockStatus {
+  if (stock === null) return "sin_controlar"
   if (stock <= 0) return "sin_stock"
-  if (stock > 0 && stock <= minStock) return "stock_bajo"
+  if (stock <= minStock) return "stock_bajo"
   return "stock_normal"
 }
 

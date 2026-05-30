@@ -20,5 +20,5 @@ export type CartItem = {
   code: string | null;
   quantity: number;
   unitPrice: number;
-  stock: number; // Para avisar si se está quedando sin unidades
+  stock: number | null; // null = sin controlar (no limita cantidad)
 }

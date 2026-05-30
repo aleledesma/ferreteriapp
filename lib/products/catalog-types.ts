@@ -1,4 +1,4 @@
-export type ProductStockStatus = "sin_stock" | "stock_bajo" | "stock_normal"
+export type ProductStockStatus = "sin_controlar" | "sin_stock" | "stock_bajo" | "stock_normal"
 
 export type ProductActivityStatusFilter = "active" | "inactive" | "all"
 export type ProductSaleStatusFilter = "for_sale" | "not_for_sale" | "all"
@@ -39,7 +39,7 @@ export type ProductListItemDto = {
     salePrice: string
   }
   inventory: {
-    stock: number
+    stock: number | null
     minStock: number
     stockStatus: ProductStockStatus
   }
@@ -122,7 +122,7 @@ export type ProductDetailDto = {
     salePrice: string
   }
   inventory: {
-    stock: number
+    stock: number | null
     minStock: number
     stockStatus: ProductStockStatus
   }
