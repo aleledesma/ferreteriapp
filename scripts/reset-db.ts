@@ -5,17 +5,14 @@
  * las tablas y reinicia las secuencias de IDs.
  *
  * Uso:
- *   npm run db:reset          → pide confirmación interactiva
+ *   npm run db:reset             → pide confirmación interactiva
  *   npm run db:reset -- --force  → ejecuta sin preguntar (útil en demos)
  */
 
 import * as readline from "readline"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "../lib/prisma"
 
-const prisma = new PrismaClient()
-
-// Tablas en orden seguro para TRUNCATE (las FK con onDelete: Cascade se
-// resuelven solas, pero el orden explícito evita dependencias circulares).
+// Tablas en orden de dependencia (FK). CASCADE resuelve las restantes.
 const TABLES = [
   "stock_movements",
   "sale_items",
@@ -40,7 +37,10 @@ async function confirm(question: string): Promise<boolean> {
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
       rl.close()
-      resolve(answer.trim().toLowerCase() === "s" || answer.trim().toLowerCase() === "y")
+      resolve(
+        answer.trim().toLowerCase() === "s" ||
+        answer.trim().toLowerCase() === "y",
+      )
     })
   })
 }
@@ -51,7 +51,6 @@ async function resetDatabase() {
   console.log("\n╔══════════════════════════════════════════════╗")
   console.log("║        RESET COMPLETO DE BASE DE DATOS       ║")
   console.log("╚══════════════════════════════════════════════╝\n")
-  console.log(`  Base de datos: ${process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":****@") ?? "(no configurada)"}`)
   console.log(`  Tablas a vaciar: ${TABLES.length}\n`)
 
   if (!isForced) {
@@ -61,6 +60,7 @@ async function resetDatabase() {
 
     if (!ok) {
       console.log("\n  Operación cancelada.\n")
+      await prisma.$disconnect()
       process.exit(0)
     }
     console.log("")
@@ -69,14 +69,13 @@ async function resetDatabase() {
   console.log("  Ejecutando TRUNCATE...")
 
   try {
-    // Un solo TRUNCATE con CASCADE resetea todo sin preocuparse por FKs.
     const tableList = TABLES.map((t) => `"${t}"`).join(", ")
     await prisma.$executeRawUnsafe(
       `TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`,
     )
 
-    console.log("  ✓ Todas las tablas vaciadas")
-    console.log("\n  Verificando conteos post-reset:")
+    console.log("  ✓ Todas las tablas vaciadas\n")
+    console.log("  Verificando conteos post-reset:")
 
     for (const table of TABLES) {
       const result = await prisma.$queryRawUnsafe<[{ count: bigint }]>(
