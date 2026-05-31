@@ -1,0 +1,81 @@
+name: Backup de base de datos
+
+on:
+  schedule:
+    # Todos los días a las 3:00am hora Argentina (UTC-3 = 6:00am UTC)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Permite ejecutarlo manualmente desde la pestaña Actions en GitHub
+
+jobs:
+  backup:
+    name: pg_dump → Google Drive
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+
+      # ── 1. Instalar rclone (herramienta para subir a Google Drive) ───────────
+      - name: Instalar rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      # ── 2. Configurar rclone con la Service Account de Google ────────────────
+      - name: Configurar rclone
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/gdrive-sa.json
+          {
+            echo "[gdrive]"
+            echo "type = drive"
+            echo "scope = drive"
+            echo "service_account_file = /tmp/gdrive-sa.json"
+            echo "root_folder_id = $GOOGLE_DRIVE_FOLDER_ID"
+          } > ~/.config/rclone/rclone.conf
+
+      # ── 3. Generar el backup con pg_dump ─────────────────────────────────────
+      - name: Generar backup
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+          FILENAME="ferreteriapp_${TIMESTAMP}.sql.gz"
+          echo "BACKUP_FILE=$FILENAME" >> "$GITHUB_ENV"
+
+          pg_dump "$DATABASE_URL" | gzip > "$FILENAME"
+
+          SIZE=$(du -sh "$FILENAME" | cut -f1)
+          echo "BACKUP_SIZE=$SIZE" >> "$GITHUB_ENV"
+          echo "✅ Backup generado: $FILENAME ($SIZE)"
+
+      # ── 4. Verificar que el archivo no esté vacío ────────────────────────────
+      - name: Verificar integridad
+        run: |
+          SIZE_BYTES=$(stat -c%s "${{ env.BACKUP_FILE }}")
+          if [ "$SIZE_BYTES" -lt 512 ]; then
+            echo "❌ El backup es demasiado pequeño (${SIZE_BYTES} bytes) — posible error"
+            exit 1
+          fi
+          echo "✅ Integridad OK: ${{ env.BACKUP_SIZE }}"
+
+      # ── 5. Subir a Google Drive ───────────────────────────────────────────────
+      - name: Subir a Google Drive
+        run: |
+          rclone copy "${{ env.BACKUP_FILE }}" gdrive:
+          echo "✅ Backup subido a Google Drive"
+
+      # ── 6. Eliminar backups con más de 30 días ────────────────────────────────
+      - name: Rotar backups antiguos
+        run: |
+          DELETED=$(rclone delete gdrive: --min-age 30d --dry-run 2>&1 | wc -l)
+          rclone delete gdrive: --min-age 30d
+          echo "🗑️  Archivos eliminados (>30 días): $DELETED"
+
+      # ── 7. Limpiar archivos temporales (siempre, aunque falle algo) ───────────
+      - name: Limpiar temporales
+        if: always()
+        run: |
+          rm -f "${{ env.BACKUP_FILE }}"
+          rm -f /tmp/gdrive-sa.json
