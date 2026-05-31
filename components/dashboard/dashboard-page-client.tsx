@@ -502,9 +502,10 @@ export function DashboardPageClient({ data, userName }: Props) {
                 data.lowStockProducts.map((product) => {
                   const isOut = product.status === "sin_stock"
                   return (
-                    <div
+                    <Link
                       key={product.id}
-                      className="flex items-center justify-between rounded-xl border border-border/50 px-3 py-3 transition-colors hover:bg-muted/20"
+                      href={`/products?product=${encodeURIComponent(product.id)}`}
+                      className="flex items-center justify-between rounded-xl border border-border/50 px-3 py-3 transition-colors hover:bg-muted/20 hover:border-border/80"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[12px] font-medium text-foreground">
@@ -525,7 +526,7 @@ export function DashboardPageClient({ data, userName }: Props) {
                           mín. {product.minStock}
                         </p>
                       </div>
-                    </div>
+                    </Link>
                   )
                 })
               ) : (
