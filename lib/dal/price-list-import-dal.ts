@@ -199,12 +199,21 @@ export async function persistNormalizedSupplierGroup({
 
   itemsSkipped += products.length - candidates.length
 
+  // Deduplicar por supplierProductCode — el Excel puede tener filas duplicadas.
+  // En caso de duplicado, prevalece la última ocurrencia.
+  const dedupedCandidates = Array.from(
+    candidates
+      .reduce((map, c) => map.set(c.supplierProductCode, c), new Map<string, typeof candidates[number]>())
+      .values(),
+  )
+  itemsSkipped += candidates.length - dedupedCandidates.length
+
   // ── 3. Buscar productos existentes (1 sola query) ───────────────────────────
-  const existingProducts = candidates.length
+  const existingProducts = dedupedCandidates.length
     ? await prisma.product.findMany({
         where: {
           supplierId:          supplier.id,
-          supplierProductCode: { in: candidates.map((c) => c.supplierProductCode) },
+          supplierProductCode: { in: dedupedCandidates.map((c) => c.supplierProductCode) },
         },
         select: { id: true, supplierProductCode: true, salePrice: true },
       })
@@ -214,8 +223,8 @@ export async function persistNormalizedSupplierGroup({
     existingProducts.map((p) => [p.supplierProductCode, p]),
   )
 
-  const toCreate = candidates.filter((c) => !existingProductMap.has(c.supplierProductCode))
-  const toUpdate = candidates.filter((c) =>  existingProductMap.has(c.supplierProductCode))
+  const toCreate = dedupedCandidates.filter((c) => !existingProductMap.has(c.supplierProductCode))
+  const toUpdate = dedupedCandidates.filter((c) =>  existingProductMap.has(c.supplierProductCode))
 
   const productRecords = new Map<string, { id: string; salePrice: Prisma.Decimal | number }>()
 
@@ -227,6 +236,7 @@ export async function persistNormalizedSupplierGroup({
         supplierProductCode: c.supplierProductCode,
         ...buildProductUpdateData(c.product, priceList.id, c.costPrice, c.salePrice, c.name),
       })),
+      skipDuplicates: true, // red de seguridad ante duplicados residuales
     })
 
     // Recuperar los IDs recién creados (1 query)
@@ -263,7 +273,7 @@ export async function persistNormalizedSupplierGroup({
   }
 
   // ── 5. Crear ítems de lista de precios en bulk (1 query) ────────────────────
-  const priceListItems = candidates.map((c) => {
+  const priceListItems = dedupedCandidates.map((c) => {
     const linked = productRecords.get(c.supplierProductCode)
     return {
       priceListId:         priceList.id,
