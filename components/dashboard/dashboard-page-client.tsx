@@ -25,6 +25,7 @@ import {
 } from "recharts"
 
 import type { DashboardData } from "@/lib/dal/dashboard-dal"
+import { ImportJobsWidget } from "@/components/dashboard/import-jobs-widget"
 import { cn } from "@/lib/utils"
 import {
   ChartContainer,
@@ -533,6 +534,9 @@ export function DashboardPageClient({ data, userName }: Props) {
             </div>
           </div>
         </section>
+
+        {/* ── Import jobs ───────────────────────────────────────────────────── */}
+        <ImportJobsWidget />
 
         {/* ── Recent sales ──────────────────────────────────────────────────── */}
         <section className="overflow-hidden rounded-xl border border-border/60 bg-background">

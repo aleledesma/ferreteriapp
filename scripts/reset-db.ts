@@ -20,6 +20,7 @@ const TABLES = [
   "supplier_price_list_items",
   "products",
   "supplier_price_lists",
+  "import_jobs",
   "customers",
   "suppliers",
   "accounts",
