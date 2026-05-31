@@ -371,7 +371,8 @@ export function DashboardPageClient({ data, userName }: Props) {
             </ChartContainer>
           </div>
 
-          {/* Stock health donut */}
+          {/* Stock health + Import jobs */}
+          <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-border/60 bg-background p-5">
             <EyebrowLabel>Inventario</EyebrowLabel>
             <SectionTitle>Salud del stock</SectionTitle>
@@ -432,6 +433,8 @@ export function DashboardPageClient({ data, userName }: Props) {
                 )
               })}
             </div>
+          </div>
+          <ImportJobsWidget />
           </div>
         </section>
 
@@ -535,9 +538,6 @@ export function DashboardPageClient({ data, userName }: Props) {
             </div>
           </div>
         </section>
-
-        {/* ── Import jobs ───────────────────────────────────────────────────── */}
-        <ImportJobsWidget />
 
         {/* ── Recent sales ──────────────────────────────────────────────────── */}
         <section className="overflow-hidden rounded-xl border border-border/60 bg-background">
