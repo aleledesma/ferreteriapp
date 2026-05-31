@@ -528,7 +528,7 @@ export async function createManualStockAdjustment(
         productId,
         createdByUserId: userId,
         type: StockMovementType.MANUAL_ADJUSTMENT,
-        quantityDelta: input.nextStock - product.stock,
+        quantityDelta: input.nextStock - (product.stock ?? 0),
         previousStock: product.stock,
         nextStock: input.nextStock,
         notes: input.notes ?? null,
