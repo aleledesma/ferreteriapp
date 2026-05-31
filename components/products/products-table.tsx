@@ -39,6 +39,8 @@ function getStockBadgeClasses(stockStatus: ProductListItemDto["inventory"]["stoc
       return "border-amber-500/20 bg-amber-500/10 text-amber-700"
     case "stock_normal":
       return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700"
+    case "sin_controlar":
+      return "border-border/60 bg-muted/40 text-muted-foreground"
   }
 }
 
@@ -50,6 +52,8 @@ function getStockLabel(stockStatus: ProductListItemDto["inventory"]["stockStatus
       return "Stock bajo"
     case "stock_normal":
       return "Normal"
+    case "sin_controlar":
+      return "Sin controlar"
   }
 }
 
@@ -61,6 +65,8 @@ function getStockNumberClass(stockStatus: ProductListItemDto["inventory"]["stock
       return "text-amber-600"
     case "stock_normal":
       return "text-foreground"
+    case "sin_controlar":
+      return "text-muted-foreground"
   }
 }
 
@@ -125,7 +131,7 @@ export function ProductsTable({ items, activeProductId, onOpenDetail, selectedId
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Stock</p>
                   <p className={cn("mt-0.5 text-xl font-bold tabular-nums leading-none", getStockNumberClass(product.inventory.stockStatus))}>
-                    {product.inventory.stock}
+                    {product.inventory.stock ?? "—"}
                   </p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">mín. {product.inventory.minStock}</p>
                 </div>
@@ -279,7 +285,7 @@ export function ProductsTable({ items, activeProductId, onOpenDetail, selectedId
 
                   <TableCell className="w-[10%] px-4 py-3 align-middle whitespace-normal">
                     <p className={cn("text-xl font-bold tabular-nums leading-none", getStockNumberClass(product.inventory.stockStatus))}>
-                      {product.inventory.stock}
+                      {product.inventory.stock ?? "—"}
                     </p>
                     <p className="mt-1 text-[11px] text-muted-foreground">mín. {product.inventory.minStock}</p>
                   </TableCell>

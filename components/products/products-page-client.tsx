@@ -77,6 +77,7 @@ const STOCK_STATUS_OPTIONS: Array<{
   label: string
 }> = [
   { value: "all", label: "Todo el stock" },
+  { value: "sin_controlar", label: "Sin controlar" },
   { value: "sin_stock", label: "Sin stock" },
   { value: "stock_bajo", label: "Stock bajo" },
   { value: "stock_normal", label: "Stock normal" },
