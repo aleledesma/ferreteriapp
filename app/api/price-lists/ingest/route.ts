@@ -38,7 +38,9 @@ export async function POST(request: Request) {
     })
 
     const payload     = mapSupplierUploadBatchesToN8nPayload(uploadBatches)
-    const callbackUrl = `${process.env.APP_CALLBACK_BASE_URL}/api/price-lists/normalized`
+    // Incluimos jobId en la URL para que el callback lo use directamente,
+    // independientemente de si n8n echa o no el traceId.
+    const callbackUrl = `${process.env.APP_CALLBACK_BASE_URL}/api/price-lists/normalized?jobId=${job.id}`
 
     let n8nResponse: Awaited<ReturnType<typeof sendPriceListPayloadToN8n>>
 

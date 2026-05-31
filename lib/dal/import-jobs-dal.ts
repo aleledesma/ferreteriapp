@@ -83,13 +83,12 @@ export async function setImportJobTraceId(
 
 // ── Resolver el job cuando llega el callback de n8n ──────────────────────────
 
-export async function resolveImportJob(
-  traceId: string,
-  result:
-    | { ok: true;  productsCreated: number; productsUpdated: number }
-    | { ok: false; errorMessage: string },
-): Promise<void> {
-  const data = result.ok
+type ResolveResult =
+  | { ok: true;  productsCreated: number; productsUpdated: number }
+  | { ok: false; errorMessage: string }
+
+function buildResolveData(result: ResolveResult) {
+  return result.ok
     ? {
         status:          ImportJobStatus.COMPLETED,
         productsCreated: result.productsCreated,
@@ -101,10 +100,25 @@ export async function resolveImportJob(
         errorMessage: result.errorMessage,
         completedAt:  new Date(),
       }
+}
 
+export async function resolveImportJobById(
+  jobId:  string,
+  result: ResolveResult,
+): Promise<void> {
+  await prisma.importJob.update({
+    where: { id: jobId },
+    data:  buildResolveData(result),
+  })
+}
+
+export async function resolveImportJob(
+  traceId: string,
+  result:  ResolveResult,
+): Promise<void> {
   await prisma.importJob.update({
     where: { traceId },
-    data,
+    data:  buildResolveData(result),
   })
 }
 
