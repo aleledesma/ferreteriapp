@@ -9,32 +9,12 @@ on:
 
 jobs:
   backup:
-    name: pg_dump → Google Drive
+    name: pg_dump → Supabase Storage
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      # ── 1. Instalar rclone (herramienta para subir a Google Drive) ───────────
-      - name: Instalar rclone
-        run: curl https://rclone.org/install.sh | sudo bash
-
-      # ── 2. Configurar rclone con la Service Account de Google ────────────────
-      - name: Configurar rclone
-        env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-        run: |
-          mkdir -p ~/.config/rclone
-          echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/gdrive-sa.json
-          {
-            echo "[gdrive]"
-            echo "type = drive"
-            echo "scope = drive"
-            echo "service_account_file = /tmp/gdrive-sa.json"
-            echo "root_folder_id = $GOOGLE_DRIVE_FOLDER_ID"
-          } > ~/.config/rclone/rclone.conf
-
-      # ── 3. Generar el backup con pg_dump ─────────────────────────────────────
+      # ── 1. Generar el backup con pg_dump ─────────────────────────────────────
       - name: Generar backup
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
@@ -49,7 +29,7 @@ jobs:
           echo "BACKUP_SIZE=$SIZE" >> "$GITHUB_ENV"
           echo "✅ Backup generado: $FILENAME ($SIZE)"
 
-      # ── 4. Verificar que el archivo no esté vacío ────────────────────────────
+      # ── 2. Verificar que el archivo no esté vacío ────────────────────────────
       # - name: Verificar integridad
       #   run: |
       #     SIZE_BYTES=$(stat -c%s "${{ env.BACKUP_FILE }}")
@@ -59,22 +39,112 @@ jobs:
       #     fi
       #     echo "✅ Integridad OK: ${{ env.BACKUP_SIZE }}"
 
-      # ── 5. Subir a Google Drive ───────────────────────────────────────────────
-      - name: Subir a Google Drive
+      # ── 3. Subir a Supabase Storage ──────────────────────────────────────────
+      - name: Subir a Supabase Storage
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
         run: |
-          rclone copy "${{ env.BACKUP_FILE }}" gdrive:
-          echo "✅ Backup subido a Google Drive"
+          OBJECT_PATH="database/${{ env.BACKUP_FILE }}"
+          echo "BACKUP_OBJECT_PATH=$OBJECT_PATH" >> "$GITHUB_ENV"
 
-      # ── 6. Eliminar backups con más de 30 días ────────────────────────────────
+          curl --fail-with-body \
+            --request POST \
+            "$SUPABASE_URL/storage/v1/object/$SUPABASE_STORAGE_BUCKET/$OBJECT_PATH" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Content-Type: application/gzip" \
+            --header "x-upsert: false" \
+            --data-binary "@${{ env.BACKUP_FILE }}"
+
+          echo "✅ Backup subido a Supabase Storage: $OBJECT_PATH"
+
+      # ── 4. Eliminar backups con más de 30 días ───────────────────────────────
       - name: Rotar backups antiguos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
         run: |
-          DELETED=$(rclone delete gdrive: --min-age 30d --dry-run 2>&1 | wc -l)
-          rclone delete gdrive: --min-age 30d
-          echo "🗑️  Archivos eliminados (>30 días): $DELETED"
+          node <<'JS'
+          const supabaseUrl = process.env.SUPABASE_URL.replace(/\/$/, "")
+          const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          const bucket = process.env.SUPABASE_STORAGE_BUCKET
+          const prefix = "database"
+          const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
 
-      # ── 7. Limpiar archivos temporales (siempre, aunque falle algo) ───────────
+          const headers = {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            apikey: serviceRoleKey,
+            "Content-Type": "application/json",
+          }
+
+          async function listObjects(offset = 0) {
+            const response = await fetch(`${supabaseUrl}/storage/v1/object/list/${bucket}`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                prefix,
+                limit: 1000,
+                offset,
+                sortBy: { column: "created_at", order: "asc" },
+              }),
+            })
+
+            if (!response.ok) {
+              throw new Error(`No se pudieron listar backups: ${response.status} ${await response.text()}`)
+            }
+
+            return response.json()
+          }
+
+          async function main() {
+            const oldObjects = []
+            let offset = 0
+
+            while (true) {
+              const objects = await listObjects(offset)
+              if (!Array.isArray(objects) || objects.length === 0) break
+
+              for (const object of objects) {
+                const createdAt = Date.parse(object.created_at || object.updated_at || "")
+                if (!Number.isNaN(createdAt) && createdAt < cutoff) {
+                  const objectPath = object.name.startsWith(`${prefix}/`) ? object.name : `${prefix}/${object.name}`
+                  oldObjects.push(objectPath)
+                }
+              }
+
+              if (objects.length < 1000) break
+              offset += objects.length
+            }
+
+            if (oldObjects.length === 0) {
+              console.log("🗑️  No hay backups antiguos para eliminar")
+              return
+            }
+
+            const deleteResponse = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}`, {
+              method: "DELETE",
+              headers,
+              body: JSON.stringify({ prefixes: oldObjects }),
+            })
+
+            if (!deleteResponse.ok) {
+              throw new Error(`No se pudieron eliminar backups antiguos: ${deleteResponse.status} ${await deleteResponse.text()}`)
+            }
+
+            console.log(`🗑️  Backups eliminados (>30 días): ${oldObjects.length}`)
+          }
+
+          main().catch((error) => {
+            console.error(error)
+            process.exit(1)
+          })
+          JS
+
+      # ── 5. Limpiar archivos temporales (siempre, aunque falle algo) ──────────
       - name: Limpiar temporales
         if: always()
         run: |
           rm -f "${{ env.BACKUP_FILE }}"
-          rm -f /tmp/gdrive-sa.json
