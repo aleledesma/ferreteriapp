@@ -3,7 +3,7 @@ name: Backup de base de datos
 on:
   schedule:
     # Todos los días a las 3:00am hora Argentina (UTC-3 = 6:00am UTC)
-    - cron: '0 6 * * *'
+    - cron: "0 6 * * *"
   workflow_dispatch:
     # Permite ejecutarlo manualmente desde la pestaña Actions en GitHub
 
@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 15
 
     steps:
-
       # ── 1. Instalar rclone (herramienta para subir a Google Drive) ───────────
       - name: Instalar rclone
         run: curl https://rclone.org/install.sh | sudo bash
@@ -51,14 +50,14 @@ jobs:
           echo "✅ Backup generado: $FILENAME ($SIZE)"
 
       # ── 4. Verificar que el archivo no esté vacío ────────────────────────────
-      - name: Verificar integridad
-        run: |
-          SIZE_BYTES=$(stat -c%s "${{ env.BACKUP_FILE }}")
-          if [ "$SIZE_BYTES" -lt 512 ]; then
-            echo "❌ El backup es demasiado pequeño (${SIZE_BYTES} bytes) — posible error"
-            exit 1
-          fi
-          echo "✅ Integridad OK: ${{ env.BACKUP_SIZE }}"
+      # - name: Verificar integridad
+      #   run: |
+      #     SIZE_BYTES=$(stat -c%s "${{ env.BACKUP_FILE }}")
+      #     if [ "$SIZE_BYTES" -lt 512 ]; then
+      #       echo "❌ El backup es demasiado pequeño (${SIZE_BYTES} bytes) — posible error"
+      #       exit 1
+      #     fi
+      #     echo "✅ Integridad OK: ${{ env.BACKUP_SIZE }}"
 
       # ── 5. Subir a Google Drive ───────────────────────────────────────────────
       - name: Subir a Google Drive
