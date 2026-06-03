@@ -167,7 +167,15 @@ export function ProductImportForm() {
     )
   }
 
-  function updateGroupPricing(groupId: string, next: Partial<Pick<SupplierUploadGroup, "saleMarginPercentage" | "keepExistingSalePrice">>) {
+  function updateGroupPricing(
+    groupId: string,
+    next: Partial<
+      Pick<
+        SupplierUploadGroup,
+        "saleMarginPercentage" | "keepExistingSalePrice"
+      >
+    >,
+  ) {
     setGroups((current) =>
       current.map((group) =>
         group.id === groupId ? { ...group, ...next } : group,
@@ -179,7 +187,10 @@ export function ProductImportForm() {
     setGroups((current) =>
       current.map((group) =>
         group.id === groupId
-          ? { ...group, files: group.files.filter((entry) => entry.id !== fileId) }
+          ? {
+              ...group,
+              files: group.files.filter((entry) => entry.id !== fileId),
+            }
           : group,
       ),
     )
@@ -199,7 +210,10 @@ export function ProductImportForm() {
     setGroups((current) =>
       current.map((group) =>
         group.id === groupId
-          ? { ...group, files: [...group.files, ...files.map(createUploadFileEntry)] }
+          ? {
+              ...group,
+              files: [...group.files, ...files.map(createUploadFileEntry)],
+            }
           : group,
       ),
     )
@@ -219,7 +233,8 @@ export function ProductImportForm() {
   async function handleSubmit() {
     if (!groups.length) {
       toast.info("Carga incompleta", {
-        description: "Agrega al menos un proveedor antes de iniciar la carga masiva.",
+        description:
+          "Agrega al menos un proveedor antes de iniciar la carga masiva.",
       })
       return
     }
@@ -246,8 +261,14 @@ export function ProductImportForm() {
       group.files.forEach((entry) => {
         formData.append("files", entry.file)
         formData.append("supplierNames", supplier.name)
-        formData.append("saleMarginPercentages", group.saleMarginPercentage.trim() || "0")
-        formData.append("keepExistingSalePrices", String(group.keepExistingSalePrice))
+        formData.append(
+          "saleMarginPercentages",
+          group.saleMarginPercentage.trim() || "0",
+        )
+        formData.append(
+          "keepExistingSalePrices",
+          String(group.keepExistingSalePrice),
+        )
       })
     })
 
@@ -262,8 +283,6 @@ export function ProductImportForm() {
 
       const payload = (await response.json()) as {
         error?: string
-        message?: string
-        traceId?: string | null
       }
 
       if (!response.ok) {
@@ -272,12 +291,8 @@ export function ProductImportForm() {
 
       toast.success("Carga iniciada", {
         id: toastId,
-        description: [
-          payload.message || "Los archivos fueron enviados correctamente para su procesamiento.",
-          payload.traceId ? `ID de seguimiento: ${payload.traceId}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
+        description:
+          "Los archivos fueron enviados. Serás notificado cuando finalice la carga de los productos. Puedes ver el estado en tiempo real desde el panel de administración.",
       })
       setGroups([])
     } catch (error) {
@@ -319,23 +334,39 @@ export function ProductImportForm() {
                     Comienza agregando un proveedor
                   </p>
                   <p className="text-sm leading-relaxed text-muted-foreground">
-                    Cada proveedor tiene su propio bloque de archivos. Así podés cargar varias listas para un mismo proveedor sin mezclar el flujo.
+                    Cada proveedor tiene su propio bloque de archivos. Así podés
+                    cargar varias listas para un mismo proveedor sin mezclar el
+                    flujo.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary">
+                  <Badge
+                    variant="outline"
+                    className="border-primary/20 bg-background/70 text-primary"
+                  >
                     XLSX / XLS / CSV
                   </Badge>
-                  <Badge variant="outline" className="border-border/60 bg-background/70">
+                  <Badge
+                    variant="outline"
+                    className="border-border/60 bg-background/70"
+                  >
                     Procesamiento asistido
                   </Badge>
                 </div>
                 <div className="flex flex-wrap justify-center gap-3 pt-2">
-                  <Button type="button" onClick={addSupplierGroup} className="shadow-sm">
+                  <Button
+                    type="button"
+                    onClick={addSupplierGroup}
+                    className="shadow-sm"
+                  >
                     <Plus className="size-4" />
                     Agregar proveedor existente
                   </Button>
-                  <Button type="button" variant="outline" onClick={createGroupAndOpenSupplierSheet}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={createGroupAndOpenSupplierSheet}
+                  >
                     Crear proveedor nuevo
                   </Button>
                 </div>
@@ -345,9 +376,15 @@ export function ProductImportForm() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  {summary.totalGroups} bloque(s) · {summary.totalFiles} archivo(s)
+                  {summary.totalGroups} bloque(s) · {summary.totalFiles}{" "}
+                  archivo(s)
                 </p>
-                <Button type="button" variant="outline" size="sm" onClick={addSupplierGroup}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addSupplierGroup}
+                >
                   <FolderPlus className="size-4" />
                   Agregar proveedor
                 </Button>
@@ -370,13 +407,20 @@ export function ProductImportForm() {
                     <div className="relative flex items-center justify-between gap-4 border-b border-border/50 px-5 py-4">
                       <div className="absolute left-0 top-0 h-full w-[3px] rounded-r-full bg-primary/60" />
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="border-primary/20 bg-background/80 text-primary">
+                        <Badge
+                          variant="outline"
+                          className="border-primary/20 bg-background/80 text-primary"
+                        >
                           Grupo {index + 1}
                         </Badge>
                         {selectedSupplier ? (
-                          <span className="text-sm font-medium text-foreground">{selectedSupplier.name}</span>
+                          <span className="text-sm font-medium text-foreground">
+                            {selectedSupplier.name}
+                          </span>
                         ) : (
-                          <span className="text-sm text-muted-foreground/60">Proveedor pendiente</span>
+                          <span className="text-sm text-muted-foreground/60">
+                            Proveedor pendiente
+                          </span>
                         )}
                       </div>
                       <Button
@@ -394,10 +438,14 @@ export function ProductImportForm() {
                     <div className="space-y-5 p-5">
                       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                         <div className="space-y-2">
-                          <p className="text-sm font-medium text-foreground">Proveedor</p>
+                          <p className="text-sm font-medium text-foreground">
+                            Proveedor
+                          </p>
                           <Select
                             value={group.supplierId}
-                            onValueChange={(value) => updateGroupSupplier(group.id, value)}
+                            onValueChange={(value) =>
+                              updateGroupSupplier(group.id, value)
+                            }
                           >
                             <SelectTrigger className="w-full bg-background">
                               <SelectValue placeholder="Selecciona un proveedor" />
@@ -418,28 +466,36 @@ export function ProductImportForm() {
                             </SelectContent>
                           </Select>
                         </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => openCreateSupplier(group.id)}
-                          >
-                            <Plus className="size-4" />
-                            Nuevo proveedor
-                          </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => openCreateSupplier(group.id)}
+                        >
+                          <Plus className="size-4" />
+                          Nuevo proveedor
+                        </Button>
                       </div>
 
                       <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                           <div className="space-y-1.5">
-                            <p className="text-sm font-medium text-foreground">Regla de precio de venta</p>
+                            <p className="text-sm font-medium text-foreground">
+                              Regla de precio de venta
+                            </p>
                             <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                              Define el porcentaje de ganancia a aplicar sobre el precio de costo durante la carga masiva. Si la lista ya trae un precio de venta, puedes conservarlo o forzar el recálculo con el margen indicado.
+                              Define el porcentaje de ganancia a aplicar sobre
+                              el precio de costo durante la carga masiva. Si la
+                              lista ya trae un precio de venta, puedes
+                              conservarlo o forzar el recálculo con el margen
+                              indicado.
                             </p>
                           </div>
 
                           <div className="grid gap-4 lg:min-w-[320px]">
                             <div className="space-y-2">
-                              <Label htmlFor={`group-margin-${group.id}`}>Margen de ganancia (%)</Label>
+                              <Label htmlFor={`group-margin-${group.id}`}>
+                                Margen de ganancia (%)
+                              </Label>
                               <Input
                                 id={`group-margin-${group.id}`}
                                 type="number"
@@ -458,11 +514,17 @@ export function ProductImportForm() {
 
                             <div className="flex items-start justify-between gap-4 rounded-xl border border-border/60 bg-background/80 px-4 py-3">
                               <div className="space-y-1">
-                                <Label htmlFor={`group-keep-sale-price-${group.id}`} className="cursor-pointer">
+                                <Label
+                                  htmlFor={`group-keep-sale-price-${group.id}`}
+                                  className="cursor-pointer"
+                                >
                                   Si la lista trae precio de venta, mantenerlo
                                 </Label>
                                 <p className="text-xs leading-relaxed text-muted-foreground">
-                                  Si desactivas esta opción, el sistema recalculará el precio de venta usando el precio de costo y el margen configurado arriba.
+                                  Si desactivas esta opción, el sistema
+                                  recalculará el precio de venta usando el
+                                  precio de costo y el margen configurado
+                                  arriba.
                                 </p>
                               </div>
                               <Switch
@@ -487,7 +549,10 @@ export function ProductImportForm() {
                         onDrop={(event) => {
                           event.preventDefault()
                           if (event.dataTransfer.files?.length) {
-                            appendFilesToGroup(group.id, event.dataTransfer.files)
+                            appendFilesToGroup(
+                              group.id,
+                              event.dataTransfer.files,
+                            )
                           }
                         }}
                         onKeyDown={(event) => {
@@ -508,7 +573,8 @@ export function ProductImportForm() {
                               {selectedSupplier?.name ?? "este proveedor"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {ACCEPTED_EXTENSIONS.join(", ").toUpperCase()} · haz clic o arrastra
+                              {ACCEPTED_EXTENSIONS.join(", ").toUpperCase()} ·
+                              haz clic o arrastra
                             </p>
                           </div>
                         </div>
@@ -535,7 +601,10 @@ export function ProductImportForm() {
                             <span>{group.files.length} archivo(s)</span>
                             <span>
                               {formatBytes(
-                                group.files.reduce((total, entry) => total + entry.file.size, 0),
+                                group.files.reduce(
+                                  (total, entry) => total + entry.file.size,
+                                  0,
+                                ),
                               )}
                             </span>
                           </div>
@@ -548,8 +617,12 @@ export function ProductImportForm() {
                                 <div className="flex min-w-0 items-center gap-2">
                                   <FileSpreadsheet className="size-4 shrink-0 text-primary" />
                                   <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium text-foreground">{entry.file.name}</p>
-                                    <p className="text-xs text-muted-foreground">{formatBytes(entry.file.size)}</p>
+                                    <p className="truncate text-sm font-medium text-foreground">
+                                      {entry.file.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatBytes(entry.file.size)}
+                                    </p>
                                   </div>
                                 </div>
                                 <Button
@@ -583,7 +656,9 @@ export function ProductImportForm() {
           <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/90 shadow-sm animate-in fade-in-0 slide-in-from-right-2 duration-500">
             <div className="border-b border-border/50 px-5 py-4">
               <p className="text-sm font-semibold text-foreground">Resumen</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Estado general de la carga</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Estado general de la carga
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-px bg-border/40">
@@ -608,19 +683,35 @@ export function ProductImportForm() {
             <div className="divide-y divide-border/40 px-5">
               <div className="flex items-center justify-between py-2.5 text-sm">
                 <span className="text-muted-foreground">Listos</span>
-                <span className={cn("font-medium tabular-nums", summary.readyGroups > 0 ? "text-emerald-700" : "text-foreground")}>
+                <span
+                  className={cn(
+                    "font-medium tabular-nums",
+                    summary.readyGroups > 0
+                      ? "text-emerald-700"
+                      : "text-foreground",
+                  )}
+                >
                   {summary.readyGroups}
                 </span>
               </div>
               <div className="flex items-center justify-between py-2.5 text-sm">
                 <span className="text-muted-foreground">Incompletos</span>
-                <span className={cn("font-medium tabular-nums", summary.incompleteGroups > 0 ? "text-amber-700" : "text-foreground")}>
+                <span
+                  className={cn(
+                    "font-medium tabular-nums",
+                    summary.incompleteGroups > 0
+                      ? "text-amber-700"
+                      : "text-foreground",
+                  )}
+                >
                   {summary.incompleteGroups}
                 </span>
               </div>
               <div className="flex items-center justify-between py-2.5 text-sm">
                 <span className="text-muted-foreground">Peso estimado</span>
-                <span className="font-medium tabular-nums text-foreground">{formatBytes(summary.totalSize)}</span>
+                <span className="font-medium tabular-nums text-foreground">
+                  {formatBytes(summary.totalSize)}
+                </span>
               </div>
             </div>
 
@@ -634,7 +725,10 @@ export function ProductImportForm() {
                   "Sube todas las listas que correspondan a ese proveedor.",
                   "Repite el proceso con los demás proveedores.",
                 ].map((step, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-muted-foreground">
+                  <li
+                    key={i}
+                    className="flex gap-2.5 text-sm text-muted-foreground"
+                  >
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
                       {i + 1}
                     </span>
