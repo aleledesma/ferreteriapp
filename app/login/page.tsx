@@ -14,9 +14,6 @@ export default function LoginPage() {
         title="Iniciar sesión"
         description="Accede con tu cuenta de Google para ingresar a FerreteriApp."
         buttonLabel="Continuar con Google"
-        footerText="¿Todavía no tienes cuenta?"
-        footerLinkLabel="Ir al registro"
-        footerLinkHref="/signup"
         onSubmit={handleGoogleSignIn}
       />
     </main>
