@@ -13,12 +13,43 @@ import {
   setImportJobTraceId,
 } from "@/lib/dal/import-jobs-dal"
 
+function resolveCallbackBaseUrl(): string | null {
+  const rawBaseUrl = process.env.APP_CALLBACK_BASE_URL
+
+  if (!rawBaseUrl) {
+    return null
+  }
+
+  try {
+    const parsed = new URL(rawBaseUrl)
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null
+    }
+  } catch {
+    return null
+  }
+
+  return rawBaseUrl.replace(/\/+$/, "")
+}
+
 export async function POST(request: Request) {
   const authorization = await getAuthorizedApiUser(["ACTIVE", "ADMIN"])
 
   if ("error" in authorization) {
     const status = authorization.error === "UNAUTHENTICATED" ? 401 : 403
     return NextResponse.json({ error: "No autorizado." }, { status })
+  }
+
+  // Validar la config del callback antes de crear el job, para no dejar
+  // un job huerfano si APP_CALLBACK_BASE_URL falta o es invalida.
+  const callbackBaseUrl = resolveCallbackBaseUrl()
+
+  if (!callbackBaseUrl) {
+    return NextResponse.json(
+      { error: "El servidor no tiene configurada correctamente APP_CALLBACK_BASE_URL." },
+      { status: 500 },
+    )
   }
 
   try {
@@ -40,7 +71,7 @@ export async function POST(request: Request) {
     const payload     = mapSupplierUploadBatchesToN8nPayload(uploadBatches)
     // Incluimos jobId en la URL para que el callback lo use directamente,
     // independientemente de si n8n echa o no el traceId.
-    const callbackUrl = `${process.env.APP_CALLBACK_BASE_URL}/api/price-lists/normalized?jobId=${job.id}`
+    const callbackUrl = `${callbackBaseUrl}/api/price-lists/normalized?jobId=${job.id}`
 
     let n8nResponse: Awaited<ReturnType<typeof sendPriceListPayloadToN8n>>
 
