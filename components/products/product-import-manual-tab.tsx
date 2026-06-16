@@ -19,7 +19,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 import { useSuppliers } from "@/lib/hooks/use-suppliers"
 import type {
   CreateManualSupplierPriceListInput,
@@ -52,6 +51,19 @@ type ManualProductDraft = {
 }
 
 const EMPTY_PRICE_LISTS: ManualSupplierPriceListItem[] = []
+const ELIGIBLE_PRICE_LIST_SOURCE_TYPES = new Set(["MANUAL", "IMPORTED"])
+const ELIGIBLE_PRICE_LIST_STATUSES = new Set(["DRAFT", "PROCESSED"])
+
+function isEligibleManualTargetPriceList(priceList: ManualSupplierPriceListItem) {
+  return (
+    ELIGIBLE_PRICE_LIST_SOURCE_TYPES.has(priceList.sourceType) &&
+    ELIGIBLE_PRICE_LIST_STATUSES.has(priceList.status)
+  )
+}
+
+function formatItemsCount(itemsCount: number) {
+  return `${itemsCount} ${itemsCount === 1 ? "item" : "items"}`
+}
 
 function createEmptyDraft(): ManualProductDraft {
   return {
@@ -136,11 +148,7 @@ export function ProductImportManualTab() {
   const [pendingPriceListId, setPendingPriceListId] = useState<string | null>(null)
 
   const availablePriceLists = useMemo(
-    () =>
-      priceLists.filter(
-        (priceList) =>
-          priceList.sourceType === "MANUAL" && priceList.status === "DRAFT",
-      ),
+    () => priceLists.filter(isEligibleManualTargetPriceList),
     [priceLists],
   )
 
@@ -162,6 +170,7 @@ export function ProductImportManualTab() {
       }
 
       setIsLoadingPriceLists(true)
+      setSelectedPriceListId("")
 
       try {
         const response = await fetch(`/api/suppliers/${selectedSupplierId}/price-lists`)
@@ -198,6 +207,18 @@ export function ProductImportManualTab() {
     }
   }, [priceListMode])
 
+  useEffect(() => {
+    if (!selectedPriceListId) return
+
+    const selectedListIsStillEligible = availablePriceLists.some(
+      (priceList) => priceList.id === selectedPriceListId,
+    )
+
+    if (!selectedListIsStillEligible) {
+      setSelectedPriceListId("")
+    }
+  }, [availablePriceLists, selectedPriceListId])
+
   function updateProductField<K extends keyof ManualProductDraft>(
     field: K,
     value: ManualProductDraft[K],
@@ -210,6 +231,17 @@ export function ProductImportManualTab() {
       if (!selectedPriceListId) {
         throw new Error("Selecciona una lista de precios existente.")
       }
+
+      const selectedList = availablePriceLists.find(
+        (priceList) => priceList.id === selectedPriceListId,
+      )
+
+      if (!selectedList) {
+        throw new Error(
+          "Selecciona una lista valida del proveedor. La lista elegida ya no esta disponible para carga manual.",
+        )
+      }
+
       return selectedPriceListId
     }
 
@@ -426,19 +458,33 @@ export function ProductImportManualTab() {
                 {isLoadingPriceLists ? (
                   <Skeleton className="h-10 w-full rounded-xl" />
                 ) : (
-                  <Select value={selectedPriceListId} onValueChange={setSelectedPriceListId}>
+                  <Select
+                    value={selectedPriceListId}
+                    onValueChange={setSelectedPriceListId}
+                    disabled={!selectedSupplierId || availablePriceLists.length === 0}
+                  >
                     <SelectTrigger id="manual-price-list-existing" className="w-full bg-background">
                       <SelectValue placeholder="Selecciona una lista" />
                     </SelectTrigger>
                     <SelectContent>
                       {availablePriceLists.map((priceList) => (
                         <SelectItem key={priceList.id} value={priceList.id}>
-                          {priceList.name}
+                          {priceList.name} — {formatItemsCount(priceList.itemsCount)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
+                {!isLoadingPriceLists && selectedSupplierId && availablePriceLists.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Este proveedor no tiene listas elegibles para carga manual. Puedes crear una lista manual nueva o elegir otro proveedor.
+                  </p>
+                ) : null}
+                {!isLoadingPriceLists && !selectedSupplierId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona un proveedor para ver sus listas existentes elegibles.
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-2">

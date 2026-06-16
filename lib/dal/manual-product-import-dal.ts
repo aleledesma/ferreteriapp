@@ -10,6 +10,9 @@ import {
   ManualProductError,
 } from "@/lib/products/manual-product-validation"
 
+const ALLOWED_MANUAL_TARGET_SOURCE_TYPES = new Set(["MANUAL", "IMPORTED"])
+const ALLOWED_MANUAL_TARGET_STATUSES = new Set(["DRAFT", "PROCESSED"])
+
 function toCreateOrUpdateProductData(
   product: ManualBatchProductInput,
   priceListId: string,
@@ -42,11 +45,6 @@ export async function createManualProduct(
         supplierId: true,
         sourceType: true,
         status: true,
-        _count: {
-          select: {
-            items: true,
-          },
-        },
       },
     })
 
@@ -54,22 +52,15 @@ export async function createManualProduct(
       throw new ManualProductError("La lista de precios no existe.", 404)
     }
 
-    if (priceList.sourceType !== "MANUAL") {
+    if (!ALLOWED_MANUAL_TARGET_SOURCE_TYPES.has(priceList.sourceType)) {
       throw new ManualProductError(
-        "La carga manual solo puede usarse sobre listas de precios manuales.",
+        "La carga manual solo puede usarse sobre listas de precios manuales o importadas.",
       )
     }
 
-    if (priceList.status !== "DRAFT") {
+    if (!ALLOWED_MANUAL_TARGET_STATUSES.has(priceList.status)) {
       throw new ManualProductError(
-        "La lista de precios debe estar en estado DRAFT para aceptar una carga manual.",
-        409,
-      )
-    }
-
-    if (priceList._count.items > 0) {
-      throw new ManualProductError(
-        "La lista de precios ya contiene items. Usa una lista manual nueva para este lote.",
+        "La lista de precios debe estar en estado DRAFT o PROCESSED para aceptar una carga manual.",
         409,
       )
     }
@@ -219,13 +210,6 @@ export async function createManualProduct(
         listPrice: input.product.listPrice ?? null,
         offerPrice: input.product.offerPrice ?? null,
         vatRate: input.product.vatRate ?? null,
-      },
-    })
-
-    await tx.supplierPriceList.update({
-      where: { id: priceList.id },
-      data: {
-        status: "PROCESSED",
       },
     })
 
