@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "@prisma/client"
+import type { PoolConfig } from "pg"
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
@@ -9,7 +10,14 @@ if (!connectionString) {
   throw new Error("Missing DATABASE_URL environment variable")
 }
 
-const adapter = new PrismaPg({ connectionString })
+const prismaPoolConfig = {
+  connectionString,
+  max: 2,
+  connectionTimeoutMillis: 5_000,
+  idleTimeoutMillis: 10_000,
+} satisfies PoolConfig
+
+const adapter = new PrismaPg(prismaPoolConfig)
 
 export const prisma =
   globalForPrisma.prisma ??

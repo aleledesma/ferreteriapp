@@ -1,4 +1,5 @@
 import { PrismaAdapter } from "@auth/prisma-adapter"
+import type { UserRole } from "@prisma/client"
 import NextAuth from "next-auth"
 import Google from "next-auth/providers/google"
 import { NextResponse } from "next/server"
@@ -8,15 +9,22 @@ import { prisma } from "@/lib/prisma"
 const PUBLIC_PATHS = new Set(["/login", "/signup"])
 const NO_ACCESS_PATH = "/no-access"
 const ADMIN_PATH_PREFIX = "/admin"
+const USER_ROLES = new Set<UserRole>(["INACTIVE", "ACTIVE", "ADMIN"])
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
 }
 
+function resolveUserRole(value: unknown): UserRole {
+  return typeof value === "string" && USER_ROLES.has(value as UserRole)
+    ? (value as UserRole)
+    : "INACTIVE"
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: {
-    strategy: "database",
+    strategy: "jwt",
   },
   providers: [
     Google({
@@ -53,18 +61,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      if (!user) {
+        return token
+      }
+
+      const userId = user.id ?? token.sub
+      if (!userId) {
+        token.role = "INACTIVE"
+        return token
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      })
+
+      token.sub = userId
+      token.id = userId
+      token.role = dbUser?.role ?? "INACTIVE"
+
+      return token
+    },
+    async session({ session, token }) {
       if (!session.user) {
         return session
       }
 
-      const dbUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { role: true },
-      })
-
-      session.user.id = user.id
-      session.user.role = dbUser?.role ?? "INACTIVE"
+      const userId = token.id ?? token.sub
+      if (userId) {
+        session.user.id = userId
+      }
+      session.user.role = resolveUserRole(token.role)
 
       return session
     },
