@@ -51,3 +51,6 @@ AGENTS.md
 /.harness/
 CLAUDE.md
 opencode.jsonc
+
+# datos de prueba con listas de proveedores
+payload-prueba-*.json
